@@ -14,20 +14,11 @@ import org.apache.spark.mllib.clustering.StreamingKMeans
 
 
 object StreamingKMeans {
-
-  def modelCenters2Array(model:StreamingKMeans, numClusters:Int, numDimensions:Int):Array[Array[Double]]= {
-    val arr = Array.fill(numClusters)(Array.fill(numDimensions)(0.0))
-    for(i <- model.latestModel().clusterCenters.indices){
-      arr(i) = model.latestModel().clusterCenters(i).toArray
-    }
-    arr
-  }
-
-  def main(args: Array[String]) {
+    def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(500))
+    val ssc = new StreamingContext(sc, Milliseconds(1000))
     val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val testData = ssc.textFileStream("/home/omar/stream/testing").map(LabeledPoint.parse)
@@ -73,17 +64,5 @@ private[clustream] class MyListener(model:StreamingKMeans, oldCenters:StaticVar[
     }
   }
 }
-//private[clustream] class MyListener(model:Array[Vector], oldModel:StaticVar[Array[Vector]]) extends StreamingListener {
-//  override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
-//    model.foreach(println)
-//    oldModel.value.foreach(println)
-//    if ( !(model sameElements oldModel.value) ) {
-//      println("Centers:")
-//      model.foreach(println)
-//      for(i <- 0 until model.length)
-//          oldModel.value(i) = model(i)
-//      0
-//    }
-//  }
-//}
+
 class StaticVar[T]( val value: T )
