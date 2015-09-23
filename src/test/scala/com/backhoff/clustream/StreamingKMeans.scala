@@ -12,7 +12,6 @@ import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.clustering.StreamingKMeans
 
-
 object StreamingKMeans {
     def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
@@ -65,13 +64,13 @@ object StreamingKMeans {
 //    }
 //  }
 //}
-private[clustream] class MyListener(model:Array[Vector], oldModel:StaticVar[Array[Vector]]) extends StreamingListener {
+private[clustream] class MyListener(centers:Array[Vector], oldCenters:StaticVar[Array[Vector]]) extends StreamingListener {
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
-    if ( !(model sameElements oldModel.value) ) {
+    if ( !(centers sameElements oldCenters.value) ) {
       println("-------Centers-------")
-      model.foreach(println)
-      for(i <- model.indices)
-          oldModel.value(i) = model(i).copy
+      centers.foreach(println)
+      for(i <- centers.indices)
+          oldCenters.value(i) = centers(i).copy
     }
   }
 }
