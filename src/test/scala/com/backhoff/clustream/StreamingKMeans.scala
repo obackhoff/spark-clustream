@@ -30,9 +30,9 @@ object StreamingKMeans {
       .setDecayFactor(0.5)
       .setRandomCenters(numDimensions, 0.0)
 
-    val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
-    //val old = new StaticVar(Array.fill(numDimensions)(Vectors.dense(Array.fill(numDimensions)(0.0))))
-    val listener = new MyListener(model, oldCenters,numDimensions,numClusters)
+    //val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
+    val oldCenters = new StaticVar(Array.fill(numDimensions)(Vectors.dense(Array.fill(numDimensions)(0.0))))
+    val listener = new MyListener(model.latestModel().clusterCenters, oldCenters)
 
     ssc.addStreamingListener(listener)
 
@@ -44,25 +44,35 @@ object StreamingKMeans {
   }
 }
 
-private[clustream] class MyListener(model:StreamingKMeans, oldCenters:StaticVar[Array[Array[Double]]], numClusters:Int, numDimensions:Int) extends StreamingListener {
-
-  def modelCenters2Array(model:StreamingKMeans, numClusters:Int, numDimensions:Int):Array[Array[Double]]= {
-    val arr = Array.fill(numClusters)(Array.fill(numDimensions)(0.0))
-    for(i <- model.latestModel().clusterCenters.indices){
-      arr(i) = model.latestModel().clusterCenters(i).toArray
-    }
-    arr
-  }
+//ALTERNATIVE OF STREAMINGLISTENER
+//private[clustream] class MyListener(model:StreamingKMeans, oldCenters:StaticVar[Array[Array[Double]]], numClusters:Int, numDimensions:Int) extends StreamingListener {
+//
+//  def modelCenters2Array(model:StreamingKMeans, numClusters:Int, numDimensions:Int):Array[Array[Double]]= {
+//    val arr = Array.fill(numClusters)(Array.fill(numDimensions)(0.0))
+//    for(i <- model.latestModel().clusterCenters.indices){
+//      arr(i) = model.latestModel().clusterCenters(i).toArray
+//    }
+//    arr
+//  }
+//  override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
+//    val centers = modelCenters2Array(model,numClusters,numDimensions)
+//    if ( !(centers.deep == oldCenters.value.deep) ) {
+//      println( (if(oldCenters.value(0).deep != Array.fill(numDimensions)(0.0).deep) "(UPDATED) " else "(INITIAL) ")  + "Centers: ")
+//      centers.foreach(_.mkString("",",","\n").foreach(print))
+//      for(i <- centers.indices)
+//        for(j <- centers(i).indices)
+//         oldCenters.value(i)(j) = centers(i)(j)
+//    }
+//  }
+//}
+private[clustream] class MyListener(model:Array[Vector], oldModel:StaticVar[Array[Vector]]) extends StreamingListener {
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
-    val centers = modelCenters2Array(model,numClusters,numDimensions)
-    if ( !(centers.deep == oldCenters.value.deep) ) {
-      println( (if(oldCenters.value(0).deep != Array.fill(numDimensions)(0.0).deep) "(UPDATED) " else "(INITIAL) ")  + "Centers: ")
-      centers.foreach(_.mkString("",",","\n").foreach(print))
-      for(i <- centers.indices)
-        for(j <- centers(i).indices)
-         oldCenters.value(i)(j) = centers(i)(j)
+    if ( !(model sameElements oldModel.value) ) {
+      println("-------Centers-------")
+      model.foreach(println)
+      for(i <- model.indices)
+          oldModel.value(i) = model(i).copy
     }
   }
 }
-
 class StaticVar[T]( val value: T )
