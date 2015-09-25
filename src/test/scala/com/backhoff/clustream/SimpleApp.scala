@@ -16,5 +16,9 @@ object SimpleApp {
     val numAs = logData.filter(line => line.contains("a")).count()
     val numBs = logData.filter(line => line.contains("b")).count()
     println("Lines with a: %s, Lines with b: %s".format(numAs, numBs))
+
+    val clu = new CluStream().setK(23).setH(100)
+
+    println("CluStream with " + clu.k + " clusters and a horizon of " + clu.h)
   }
 }

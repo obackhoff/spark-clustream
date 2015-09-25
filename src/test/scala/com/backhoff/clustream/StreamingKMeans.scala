@@ -13,12 +13,12 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.clustering.StreamingKMeans
 
 object StreamingKMeans {
-    def main(args: Array[String]) {
+  def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(1000))
-    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
+    val ssc = new StreamingContext(sc, Milliseconds(3000))
+    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
     //val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val testData = ssc.textFileStream("/home/omar/stream/testing").map(LabeledPoint.parse)
     val testData = ssc.socketTextStream("localhost", 9998).map(LabeledPoint.parse)
@@ -27,7 +27,7 @@ object StreamingKMeans {
     val model = new StreamingKMeans()
       .setK(numClusters)
       .setDecayFactor(0.5)
-      .setRandomCenters(numDimensions, 0.0)
+      .setRandomCenters(numDimensions, 10.0)
 
     //val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
     val oldCenters = new StaticVar(Array.fill(numDimensions)(Vectors.dense(Array.fill(numDimensions)(0.0))))
@@ -67,7 +67,7 @@ object StreamingKMeans {
 private[clustream] class MyListener(centers:Array[Vector], oldCenters:StaticVar[Array[Vector]]) extends StreamingListener {
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
     if ( !(centers sameElements oldCenters.value) ) {
-      println("-------Centers-------")
+      println("================= CENTERS =================")
       centers.foreach(println)
       for(i <- centers.indices)
           oldCenters.value(i) = centers(i).copy
