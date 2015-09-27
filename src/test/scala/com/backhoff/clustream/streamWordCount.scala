@@ -13,9 +13,17 @@ object streamWordCount {
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
     val ssc = new StreamingContext(sc, Seconds(5))
+    ssc.checkpoint("/home/omar/stream/checkpoint")
     val lines = ssc.socketTextStream("localhost", 9999)
-    val words = lines.flatMap(_.split(" "))
-    val pairs = words.map(word => (word, 1))
+//    val words = lines.flatMap(_.split(" ").map(_.toInt))
+//    val pairs = words.map(word => (word, 1))
+//    val wordCounts = pairs.reduceByKey(_ + _)
+//
+//
+//    wordCounts.print()
+
+    val words = lines.map(_.split(" ").map(_.toInt).zipWithIndex)
+    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
     val wordCounts = pairs.reduceByKey(_ + _)
 
 

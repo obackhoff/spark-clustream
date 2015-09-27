@@ -4,8 +4,7 @@ package com.backhoff.clustream
  * Created by omar on 9/25/15.
  */
 
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.Vector
+import breeze.linalg._
 import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
@@ -20,16 +19,25 @@ class CluStreamModel (
                        val numDimensions: Int)
   extends Logging{
 
-  private val time: Long = 0L
-  private val cf2x: Array[Vector] = Array.fill(q)(Vectors.zeros(numDimensions))
-  private val cf1x: Array[Vector] = Array.fill(q)(Vectors.zeros(numDimensions))
-  private val cf2t: Array[Vector] = Array.fill(q)(Vectors.zeros(numDimensions))
-  private val cf1t: Array[Vector] = Array.fill(q)(Vectors.zeros(numDimensions))
-  private val n: Array[Long] = Array.fill(q)(0L)
+//  private var time: Long = 0L
+//  private var cf2x: Array[Vector[Double]] = Array.fill(q)(Vector.zeros[Double](numDimensions))
+//  private var cf1x: Array[Vector[Double]] = Array.fill(q)(Vector.zeros[Double](numDimensions))
+//  private var cf2t: Array[Vector[Double]] = Array.fill(q)(Vector.zeros[Double](numDimensions))
+//  private var cf1t: Array[Vector[Double]] = Array.fill(q)(Vector.zeros[Double](numDimensions))
+//  private var n: Vector[Long] = Vector.zeros[Long](q)
 
+  def update(): Unit ={
+
+  }
   def initialize(): Unit ={}
   def run(): Unit ={}
   def saveSnapshot(): Unit ={}
   def mergeMicroClusters(): Unit ={}
   def assignToMicroCluster(): Unit ={}
+//  def joinRDDs(data: DStream): RDD[Vector] ={
+//    var temp: RDD[] = null
+//    for(i <- data.count()){
+//      temp = data.foreachRDD()
+//    }
+//  }
 }

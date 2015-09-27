@@ -4,8 +4,7 @@ package com.backhoff.clustream
  * Created by omar on 9/25/15.
  */
 
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.Vector
+import breeze.linalg._
 import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
@@ -19,7 +18,7 @@ class CluStream (
                   val model:CluStreamModel)
   extends Logging with Serializable{
 
-  def this() = this(2,100)
+  def this() = this(2,100,null)
 
   def setK(k: Int): this.type = {
     this.k = k
