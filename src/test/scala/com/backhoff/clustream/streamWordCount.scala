@@ -6,6 +6,7 @@ package com.backhoff.clustream
 
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming._
+import breeze.linalg._
 
 object streamWordCount {
   def main(args: Array[String]) {
@@ -13,7 +14,7 @@ object streamWordCount {
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
     val ssc = new StreamingContext(sc, Seconds(5))
-    ssc.checkpoint("/home/omar/stream/checkpoint")
+   // ssc.checkpoint("/home/omar/stream/checkpoint")
     val lines = ssc.socketTextStream("localhost", 9999)
 //    val words = lines.flatMap(_.split(" ").map(_.toInt))
 //    val pairs = words.map(word => (word, 1))
@@ -22,12 +23,15 @@ object streamWordCount {
 //
 //    wordCounts.print()
 
-    val words = lines.map(_.split(" ").map(_.toInt).zipWithIndex)
-    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
-    val wordCounts = pairs.reduceByKey(_ + _)
+//    val words = lines.map(_.split(" ").map(_.toInt).zipWithIndex)
+//    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
+//    val wordCounts = pairs.reduceByKey(_ + _)
 
+    val model = new CluStreamModel(1,1,1,2,sc)
+    //model.initialize()
+    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
 
-    wordCounts.print()
+   // wordCounts.print()
     ssc.start()
     ssc.awaitTermination()
   }
