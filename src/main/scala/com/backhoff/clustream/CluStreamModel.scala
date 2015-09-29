@@ -82,11 +82,13 @@ private class MicroClusterObject(
 
   def this() = this(null,null)
 
-  def setVector(cfv: breeze.linalg.Vector[Double]): Unit = {
+  def setVector(cfv: breeze.linalg.Vector[Double]): this.type = {
     this.cfv = cfv
+    this
   }
-  def setIds(ids: Array[Int]): Unit = {
+  def setIds(ids: Array[Int]): this.type = {
     this.ids = ids
+    this
   }
   def getVector: breeze.linalg.Vector[Double] = {
     this.cfv
