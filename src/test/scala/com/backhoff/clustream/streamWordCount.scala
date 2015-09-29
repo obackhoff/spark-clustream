@@ -13,9 +13,10 @@ object streamWordCount {
     val conf = new SparkConf().setAppName("Stream Word Count").setMaster("local[*]")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Seconds(5))
+    val ssc = new StreamingContext(sc, Seconds(2))
    // ssc.checkpoint("/home/omar/stream/checkpoint")
-    val lines = ssc.socketTextStream("localhost", 9999)
+   // val lines = ssc.socketTextStream("localhost", 9999)
+    val lines = ssc.textFileStream("file:///home/omar/stream/train")
 //    val words = lines.flatMap(_.split(" ").map(_.toInt))
 //    val pairs = words.map(word => (word, 1))
 //    val wordCounts = pairs.reduceByKey(_ + _)
@@ -29,7 +30,9 @@ object streamWordCount {
 
     val model = new CluStreamModel(1,1,1,2,sc)
     //model.initialize()
-    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
+
+   // model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
+    model.run(lines.map(_.split(" ").map(_.toDouble)).map(arr => arr.dropRight(1)).map(DenseVector(_)))
 
    // wordCounts.print()
     ssc.start()

@@ -18,7 +18,7 @@ class CluStreamModel (
                        val alphaModifier: Int,
                        val numDimensions: Int,
                        val sc: SparkContext)
-  extends Logging {
+  extends Logging with Serializable{
 
   private var time: Long = 0L
   private var cf2x: RDD[breeze.linalg.Vector[Double]] = null
@@ -26,6 +26,7 @@ class CluStreamModel (
   private var cf2t: RDD[breeze.linalg.Vector[Double]] = null
   private var cf1t: RDD[breeze.linalg.Vector[Double]] = null
   private var n: RDD[Long] = null
+  private var N: Long = 0L
 
   initialize()
 
@@ -51,48 +52,51 @@ class CluStreamModel (
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit ={
     data.foreachRDD { (rdd, time) =>
       this.time += 1
-      update(rdd: RDD[breeze.linalg.Vector[Double]])
-
-      cf1x = sc.parallelize(Array(cf1x.reduce(_ :+ _)))
-      print("CF1X: ")
-      cf1x.foreach(println)
-      cf2x = sc.parallelize(Array(cf2x.reduce(_ :+ _)))
-      print("CF2X: ")
-      cf2x.foreach(println)
-      println(this.time)
+      if(!rdd.isEmpty()) {
+        update(rdd: RDD[breeze.linalg.Vector[Double]])
+        this.N += rdd.count()
+        cf1x = sc.parallelize(Array(cf1x.reduce(_ :+ _)))
+        print("CF1X: ")
+        cf1x.foreach(println)
+        cf2x = sc.parallelize(Array(cf2x.reduce(_ :+ _)))
+        print("CF2X: ")
+        cf2x.foreach(println)
+        println("Total time units elapsed: " + this.time)
+        println("Total number of points: " + N)
+      }
     }
   }
+
   def saveSnapshot(): Unit ={}
   def mergeMicroClusters(): Unit ={}
-  def assignToMicroCluster(point: Vector): Int ={
+  def assignToMicroCluster(point: Vector[Double]): Int ={
     0
   }
-//  def joinRDDs(data: DStream): RDD[Vector] ={
-//    var temp: RDD[] = null
-//    for(i <- data.count()){
-//      temp = data.foreachRDD()
-//    }
-//  }
+
 }
 
+@SerialVersionUID(123L)
 private class MicroClusterObject(
                           var cfv: breeze.linalg.Vector[Double],
-                          var ids: Array[Int]){
+                          var ids: Array[Int]) extends Serializable{
 
   def this() = this(null,null)
 
-  def setVector(cfv: breeze.linalg.Vector[Double]): this.type = {
+  def setVector(cfv: breeze.linalg.Vector[Double]): Unit = {
     this.cfv = cfv
-    this
   }
-  def setIds(ids: Array[Int]): this.type = {
+  def setIds(ids: Array[Int]): Unit = {
     this.ids = ids
-    this
   }
-  def getVector(): breeze.linalg.Vector[Double] = {
+  def getVector: breeze.linalg.Vector[Double] = {
     this.cfv
   }
-  def getIds(): Array[Int] = {
+  def getIds: Array[Int] = {
     this.ids
   }
+}
+
+private class OrderingMicroCluster extends Ordering[Tuple2[Array[Int], Double]] {
+  override def compare(x: (Array[Int], Double), y: (Array[Int], Double)): Int =
+    Ordering[Double].compare(x._2, y._2)
 }
