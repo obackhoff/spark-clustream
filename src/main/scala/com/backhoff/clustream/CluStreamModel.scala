@@ -10,6 +10,7 @@ import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.{Experimental, Since}
 import org.apache.spark.util.Utils
+import org.apache.spark.util.random.XORShiftRandom
 
 @Experimental
 class CluStreamModel (
@@ -23,6 +24,8 @@ class CluStreamModel (
   private var time: Long = 0L
   private var cf2x: RDD[breeze.linalg.Vector[Double]] = null
   private var cf1x: RDD[breeze.linalg.Vector[Double]] = null
+  private var cf1xMCTemp: RDD[breeze.linalg.Vector[Double]] = null
+  private var cf1xMC: RDD[MicroClusterObject] = null
   private var cf2t: RDD[breeze.linalg.Vector[Double]] = null
   private var cf1t: RDD[breeze.linalg.Vector[Double]] = null
   private var n: RDD[Long] = null
@@ -41,10 +44,15 @@ class CluStreamModel (
     cf1x = cf1xPairs.union(rdd.zipWithIndex().map(a => (a._2,a._1))).reduceByKey(_ :+ _).map(a => a._2)
     cf2x = cf2xPairs.union(squares.zipWithIndex().map(a => (a._2,a._1))).reduceByKey(_ :+ _).map(a => a._2)
 
+    //rdd.map(a => assignToMicroCluster(a)).foreach(println)
+
+
   }
   def initialize(): Unit ={
     cf2x = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
     cf1x = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
+    cf1xMC = sc.parallelize(Array.fill(q)(new MicroClusterObject(Vector.fill[Double](numDimensions)(rand()))))
+
 //    cf2t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
 //    cf1t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
 //    n = sc.parallelize(Array.fill[Long](q)(0))
@@ -55,6 +63,8 @@ class CluStreamModel (
       if(!rdd.isEmpty()) {
         update(rdd: RDD[breeze.linalg.Vector[Double]])
         this.N += rdd.count()
+
+        println()
         cf1x = sc.parallelize(Array(cf1x.reduce(_ :+ _)))
         print("CF1X: ")
         cf1x.foreach(println)
@@ -69,18 +79,22 @@ class CluStreamModel (
 
   def saveSnapshot(): Unit ={}
   def mergeMicroClusters(): Unit ={}
-  def assignToMicroCluster(point: Vector[Double]): Int ={
-    0
+  def assignToMicroCluster(point: Vector[Double]): Array[Int] ={
+    cf1xMC.map(a => (a.ids, a.cfv)).mapValues(a => squaredDistance(a, point)).min()(new OrderingMicroCluster)._1
   }
 
 }
 
-@SerialVersionUID(123L)
+private object MicroClusterObject{
+  private var current = 0
+  private def inc = {current += 1; current}
+}
+
 private class MicroClusterObject(
                           var cfv: breeze.linalg.Vector[Double],
                           var ids: Array[Int]) extends Serializable{
 
-  def this() = this(null,null)
+  def this(cfv: breeze.linalg.Vector[Double]) = this(cfv, Array(MicroClusterObject.inc))
 
   def setVector(cfv: breeze.linalg.Vector[Double]): this.type = {
     this.cfv = cfv
