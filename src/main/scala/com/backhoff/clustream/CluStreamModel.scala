@@ -23,57 +23,23 @@ class CluStreamModel (
   extends Logging with Serializable{
 
   private var time: Long = 0L
-  private var cf2x: RDD[breeze.linalg.Vector[Double]] = null
-  private var cf1x: RDD[breeze.linalg.Vector[Double]] = null
   private var microClusters: Array[MicroCluster] = null
   private val centroids: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(rand()))
   private var N: Long = 0L
   private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
   private var broadcastQ: Broadcast[Int] = null
-  private var testMC: RDD[MicroCluster] = null
 
   initialize()
 
-  def update(rdd: RDD[breeze.linalg.Vector[Double]]): Unit ={
-//    val cf2xPairs = cf2x.zipWithIndex().map(a => (a._2,a._1))
-//    val cf1xPairs = cf1x.zipWithIndex().map(a => (a._2,a._1))
-//    val squares = rdd.map(a => a :* a)
-//
-//    cf1x.unpersist()
-//    cf2x.unpersist()
-//
-//    cf1x = cf1xPairs.union(rdd.zipWithIndex().map(a => (a._2,a._1))).reduceByKey(_ :+ _).map(a => a._2)
-//    cf2x = cf2xPairs.union(squares.zipWithIndex().map(a => (a._2,a._1))).reduceByKey(_ :+ _).map(a => a._2)
-
-
-    val assignations = assignToMicroCluster(rdd,broadcastQ.value, broadcastCentroids.value)
-    //updateMicroClusters(assignations)
-
-
-    val i = 0
-    for(mc <- microClusters){
-      if(mc.getN > 0) centroids(i) = mc.getCf1x :/ mc.getN.toDouble
-    }
-    broadcastCentroids = rdd.context.broadcast(centroids)
-
-  }
   def initialize(): Unit ={
-    cf2x = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
-    cf1x = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
     microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
     broadcastCentroids = sc.broadcast(centroids)
     broadcastQ = sc.broadcast(q)
-    testMC = sc.parallelize(microClusters)
-
-//    cf2t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
-//    cf1t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
-//    n = sc.parallelize(Array.fill[Long](q)(0))
   }
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit ={
     data.foreachRDD { (rdd, time) =>
       this.time += 1
       if(!rdd.isEmpty()) {
-        //update(rdd: RDD[breeze.linalg.Vector[Double]])
         val assignations = assignToMicroCluster(rdd,broadcastQ.value, broadcastCentroids.value)
         updateMicroClusters(assignations)
         var i = 0
@@ -85,13 +51,6 @@ class CluStreamModel (
 
         this.N += rdd.count()
 
-//        println()
-//        cf1x = sc.parallelize(Array(cf1x.reduce(_ :+ _)))
-//        print("CF1X: ")
-//        cf1x.foreach(println)
-//        cf2x = sc.parallelize(Array(cf2x.reduce(_ :+ _)))
-//        print("CF2X: ")
-//        cf2x.foreach(println)
         println("CF1X: ")
         microClusters.foreach(a => println(a.getCf1x))
         println("CF2X: ")
@@ -127,9 +86,6 @@ class CluStreamModel (
     val sums = assignations.reduceByKey(_ :+ _).collect
     val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect
 
-//    pointCount.foreach(println)
-//    sums.foreach(println)
-//    sumsSquares.foreach(println)
     for(mc <- this.microClusters){
       for(s <- sums) if(mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
       for(ss <- sumsSquares) if(mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
@@ -138,7 +94,6 @@ class CluStreamModel (
   }
 
 }
-
 
 private object MicroCluster extends Serializable{
   private var current = -1
@@ -191,11 +146,6 @@ private class MicroCluster(
   def getIds: Array[Int] = {
     this.ids
   }
-}
-
-private class OrderingMicroCluster extends Ordering[Tuple2[Array[Int], Double]] {
-  override def compare(x: (Array[Int], Double), y: (Array[Int], Double)): Int =
-    Ordering[Double].compare(x._2, y._2)
 }
 
 private class OrderingDoubleTuple extends Ordering[Tuple2[Int, Double]] with Serializable{
