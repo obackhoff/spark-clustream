@@ -30,6 +30,7 @@ class CluStreamModel (
   private var N: Long = 0L
   private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
   private var broadcastQ: Broadcast[Int] = null
+  private var testMC: RDD[MicroCluster] = null
 
   initialize()
 
@@ -62,6 +63,7 @@ class CluStreamModel (
     microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
     broadcastCentroids = sc.broadcast(centroids)
     broadcastQ = sc.broadcast(q)
+    testMC = sc.parallelize(microClusters)
 
 //    cf2t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
 //    cf1t = sc.parallelize(Array.fill(q)(Vector.zeros[Double](numDimensions)))
@@ -74,9 +76,10 @@ class CluStreamModel (
         //update(rdd: RDD[breeze.linalg.Vector[Double]])
         val assignations = assignToMicroCluster(rdd,broadcastQ.value, broadcastCentroids.value)
         updateMicroClusters(assignations)
-        val i = 0
+        var i = 0
         for(mc <- this.microClusters){
           if(mc.getN > 0) centroids(i) = mc.getCf1x :/ mc.getN.toDouble
+          i += 1
         }
         broadcastCentroids = rdd.context.broadcast(centroids)
 
@@ -89,10 +92,14 @@ class CluStreamModel (
 //        cf2x = sc.parallelize(Array(cf2x.reduce(_ :+ _)))
 //        print("CF2X: ")
 //        cf2x.foreach(println)
-        print("CF1X: ")
+        println("CF1X: ")
         microClusters.foreach(a => println(a.getCf1x))
-        print("CF2X: ")
+        println("CF2X: ")
         microClusters.foreach(a => println(a.getCf2x))
+        println("number of points per MC: ")
+        microClusters.foreach(a => println(a.getN))
+        println("Centers: ")
+        broadcastCentroids.value.foreach(println)
         println("Total time units elapsed: " + this.time)
         println("Total number of points: " + N)
         println()
@@ -120,9 +127,9 @@ class CluStreamModel (
     val sums = assignations.reduceByKey(_ :+ _).collect
     val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect
 
-    pointCount.foreach(println)
-    sums.foreach(println)
-    sumsSquares.foreach(println)
+//    pointCount.foreach(println)
+//    sums.foreach(println)
+//    sumsSquares.foreach(println)
     for(mc <- this.microClusters){
       for(s <- sums) if(mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
       for(ss <- sumsSquares) if(mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
@@ -134,7 +141,7 @@ class CluStreamModel (
 
 
 private object MicroCluster extends Serializable{
-  private var current = 0
+  private var current = -1
   private def inc = {current += 1; current}
 }
 
