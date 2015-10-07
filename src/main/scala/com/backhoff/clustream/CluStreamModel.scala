@@ -6,10 +6,10 @@ package com.backhoff.clustream
 
 import breeze.linalg._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{SparkContext, Logging}
+import org.apache.spark.{TaskContext, Partition, SparkContext, Logging}
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.annotation.{Experimental, Since}
+import org.apache.spark.annotation.{DeveloperApi, Experimental, Since}
 import org.apache.spark.util.Utils
 import org.apache.spark.util.random.XORShiftRandom
 
@@ -19,27 +19,55 @@ class CluStreamModel (
                        val alpha: Int,
                        val alphaModifier: Int,
                        val numDimensions: Int,
+                       val minInitPoints: Int,
                        val sc: SparkContext)
   extends Logging with Serializable{
 
   private var time: Long = 0L
   private var microClusters: Array[MicroCluster] = null
-  private val centroids: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(rand()))
+  private val centroids: Array[breeze.linalg.Vector[Double]] = null
   private var N: Long = 0L
   private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
   private var broadcastQ: Broadcast[Int] = null
+  private var initialized = false
+  private var initArr: Array[Object] = Array()
 
-  initialize()
-
-  def initialize(): Unit ={
-    microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
-    broadcastCentroids = sc.broadcast(centroids)
+  private def initRand(): Unit ={
+    broadcastCentroids = sc.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())))
     broadcastQ = sc.broadcast(q)
+    microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
+    initialized = true
   }
+
+  private def initKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit ={
+    if (initArr == null) initArr = initArr :+ rdd.collect else initArr = initArr :+ rdd.collect
+    if(initArr.length >= minInitPoints) {
+      import org.apache.spark.mllib.clustering.KMeans
+      val parArr: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(0))
+      for(i <- 0 until parArr.length) parArr(i) = DenseVector(initArr(i).)
+      val clusters = KMeans.train(rdd.context.parallelize(initArr), q, 20)
+      microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
+      for(i <- 0 until clusters.clusterCenters.length) centroids(i) = DenseVector(clusters.clusterCenters(i).toArray)
+      broadcastCentroids = rdd.context.broadcast(centroids)
+      broadcastQ = sc.broadcast(q)
+      rdd.unpersist()
+      initialized = true
+    }
+  }
+
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit ={
     data.foreachRDD { (rdd, time) =>
       this.time += 1
-      if(!rdd.isEmpty()) {
+      this.N += rdd.count()
+
+      if(!rdd.isEmpty() && !initialized){
+       minInitPoints match {
+           case 0 => initRand()
+           case _ => initKmeans(rdd)
+        }
+      }
+
+      if(!rdd.isEmpty() && initialized) {
         val assignations = assignToMicroCluster(rdd,broadcastQ.value, broadcastCentroids.value)
         updateMicroClusters(assignations)
         var i = 0
@@ -49,7 +77,7 @@ class CluStreamModel (
         }
         broadcastCentroids = rdd.context.broadcast(centroids)
 
-        this.N += rdd.count()
+
 
         println("CF1X: ")
         microClusters.foreach(a => println(a.getCf1x))
@@ -67,9 +95,9 @@ class CluStreamModel (
     }
   }
 
-  def saveSnapshot(): Unit ={}
-  def mergeMicroClusters(): Unit ={}
-  def assignToMicroCluster(rdd: RDD[Vector[Double]],q: Int, centroids: Array[Vector[Double]]): RDD[(Int,Vector[Double])] ={
+  private def saveSnapshot(): Unit ={}
+  private def mergeMicroClusters(): Unit ={}
+  private def assignToMicroCluster(rdd: RDD[Vector[Double]],q: Int, centroids: Array[Vector[Double]]): RDD[(Int,Vector[Double])] ={
     rdd.map{ a =>
       val arr = Array.fill[(Int,Double)](q)(0,0)
       var i = 0
@@ -81,7 +109,7 @@ class CluStreamModel (
     }
   }
 
-  def updateMicroClusters(assignations: RDD[(Int,Vector[Double])]): Unit ={
+  private def updateMicroClusters(assignations: RDD[(Int,Vector[Double])]): Unit ={
     val pointCount = assignations.groupByKey.mapValues(a => a.size).collect
     val sums = assignations.reduceByKey(_ :+ _).collect
     val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect
@@ -151,4 +179,9 @@ private class MicroCluster(
 private class OrderingDoubleTuple extends Ordering[Tuple2[Int, Double]] with Serializable{
   override def compare(x: (Int, Double), y: (Int, Double)): Int =
     Ordering[Double].compare(x._2, y._2)
+}
+
+private object CluStreamModel{
+  private val RANDOM = "random"
+  private val KMEANS = "kmeans"
 }
