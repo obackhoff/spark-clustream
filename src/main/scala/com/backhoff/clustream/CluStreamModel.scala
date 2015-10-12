@@ -110,9 +110,9 @@ class CluStreamModel (
   }
 
   private def updateMicroClusters(assignations: RDD[(Int,Vector[Double])]): Unit ={
-    val pointCount = assignations.groupByKey.mapValues(a => a.size).collect
-    val sums = assignations.reduceByKey(_ :+ _).collect
-    val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect
+    val pointCount = assignations.groupByKey().mapValues(a => a.size).collect()
+    val sums = assignations.reduceByKey(_ :+ _).collect()
+    val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect()
 
     for(mc <- this.microClusters){
       for(s <- sums) if(mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
