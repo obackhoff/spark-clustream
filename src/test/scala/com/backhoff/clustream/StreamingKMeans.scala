@@ -21,7 +21,7 @@ object StreamingKMeans {
     val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
     //val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val testData = ssc.textFileStream("/home/omar/stream/testing").map(LabeledPoint.parse)
-    val testData = ssc.socketTextStream("localhost", 9998).map(LabeledPoint.parse)
+   // val testData = ssc.socketTextStream("localhost", 9998).map(LabeledPoint.parse)
     val numDimensions = 2
     val numClusters = 2
     val model = new StreamingKMeans()
@@ -36,7 +36,7 @@ object StreamingKMeans {
     ssc.addStreamingListener(listener)
 
     model.trainOn(trainingData)
-    model.predictOnValues(testData.map(lp => (lp.label, lp.features))).print()
+    //model.predictOnValues(testData.map(lp => (lp.label, lp.features))).print()
 
     ssc.start()
     ssc.awaitTermination()

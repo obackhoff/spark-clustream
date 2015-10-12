@@ -18,7 +18,7 @@ object KmeansTest {
     val parsedData = data.map(s => Vectors.dense(s.split(' ').dropRight(1).map(_.toDouble))).cache()
 
     // Cluster the data into two classes using KMeans
-    val numClusters = 100
+    val numClusters = 2
     val numIterations = 20
     val clusters = KMeans.train(parsedData, numClusters, numIterations)
 

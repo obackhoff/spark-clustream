@@ -25,12 +25,12 @@ class CluStreamModel (
 
   private var time: Long = 0L
   private var microClusters: Array[MicroCluster] = null
-  private val centroids: Array[breeze.linalg.Vector[Double]] = null
+  private val centroids: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(0))
   private var N: Long = 0L
   private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
   private var broadcastQ: Broadcast[Int] = null
   private var initialized = false
-  private var initArr: Array[Object] = Array()
+  private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
   private def initRand(): Unit ={
     broadcastCentroids = sc.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())))
@@ -40,17 +40,16 @@ class CluStreamModel (
   }
 
   private def initKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit ={
-    if (initArr == null) initArr = initArr :+ rdd.collect else initArr = initArr :+ rdd.collect
+    initArr = initArr ++ rdd.collect
     if(initArr.length >= minInitPoints) {
+      print("min points " + initArr.length + " = ")
+      initArr.foreach(print)
       import org.apache.spark.mllib.clustering.KMeans
-      val parArr: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(0))
-      for(i <- 0 until parArr.length) parArr(i) = DenseVector(initArr(i).)
-      val clusters = KMeans.train(rdd.context.parallelize(initArr), q, 20)
+      val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
       microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0),Vector.fill[Double](numDimensions)(0),0L,0L,0L))
-      for(i <- 0 until clusters.clusterCenters.length) centroids(i) = DenseVector(clusters.clusterCenters(i).toArray)
+      for(i <- clusters.clusterCenters.indices) centroids(i) = DenseVector(clusters.clusterCenters(i).toArray)
       broadcastCentroids = rdd.context.broadcast(centroids)
       broadcastQ = sc.broadcast(q)
-      rdd.unpersist()
       initialized = true
     }
   }
@@ -68,7 +67,8 @@ class CluStreamModel (
       }
 
       if(!rdd.isEmpty() && initialized) {
-        val assignations = assignToMicroCluster(rdd,broadcastQ.value, broadcastCentroids.value)
+
+        val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastCentroids.value)
         updateMicroClusters(assignations)
         var i = 0
         for(mc <- this.microClusters){
