@@ -28,7 +28,7 @@ object StreamingTests {
 //    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
 //    val wordCounts = pairs.reduceByKey(_ + _)
 
-    val model = new CluStreamModel(2,1,1,2,100,sc)
+    val model = new CluStreamModel(3,1,1,2,1000)
     //model.initialize()
 
 //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
