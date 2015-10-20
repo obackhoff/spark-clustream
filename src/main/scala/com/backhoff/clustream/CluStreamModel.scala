@@ -28,6 +28,7 @@ class CluStreamModel(
   private var N: Long = 0L
   private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
   private var broadcastQ: Broadcast[Int] = null
+  private var broadcastRMSD: Broadcast[Double] = null
   private var initialized = false
   private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
@@ -41,8 +42,6 @@ class CluStreamModel(
   private def initKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
     initArr = initArr ++ rdd.collect
     if (initArr.length >= minInitPoints) {
-      print("min points " + initArr.length + " = ")
-      initArr.foreach(print)
 
       import org.apache.spark.mllib.clustering.KMeans
       val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
@@ -80,22 +79,28 @@ class CluStreamModel(
           }
           broadcastCentroids = rdd.context.broadcast(centroids)
 
-          println("CF1X: ")
-          microClusters.foreach(a => println(a.getCf1x))
-          println("CF2X: ")
-          microClusters.foreach(a => println(a.getCf2x))
-          println("number of points per MC: ")
-          microClusters.foreach(a => println(a.getN))
+          //PRINT STUFF FOR DEBUGING 
+          microClusters.foreach {mc =>
+            println("IDs " + mc.getIds.mkString(" "))
+            println("CF1X: " + mc.getCf1x.toString)
+            println("CF2X: " + mc.getCf2x.toString)
+            println("CF1T: " + mc.getCf1t.toString)
+            println("CF2T: " + mc.getCf2t.toString)
+            println("N: " + mc.getN.toString)
+
+          }
           println("Centers: ")
           broadcastCentroids.value.foreach(println)
           println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
           println()
 
+
         } else { minInitPoints match {
-            case 0 => initRand(rdd)
-            case _ => initKmeans(rdd) }
+          case 0 => initRand(rdd)
+          case _ => initKmeans(rdd) }
         }
+
       }
     }
   }
@@ -124,8 +129,13 @@ class CluStreamModel(
     for (mc <- this.microClusters) {
       for (s <- sums) if (mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
       for (ss <- sumsSquares) if (mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
-      for (pc <- pointCount) if (mc.getIds(0) == pc._1) mc.setN(mc.n + pc._2)
+      for (pc <- pointCount) if (mc.getIds(0) == pc._1) {
+        mc.setN(mc.n + pc._2)
+        mc.setCf1t(mc.cf1t + pc._2 * this.time )
+        mc.setCf2t(mc.cf2t + pc._2 * (this.time * this.time) )
+      }
     }
+
   }
 
 }

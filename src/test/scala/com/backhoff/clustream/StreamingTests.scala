@@ -13,10 +13,10 @@ object StreamingTests {
     val conf = new SparkConf().setAppName("Stream Word Count").setMaster("local[*]")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Seconds(2))
+    val ssc = new StreamingContext(sc, Seconds(3))
    // ssc.checkpoint("/home/omar/stream/checkpoint")
-//    val lines = ssc.socketTextStream("localhost", 9999)
-    val lines = ssc.textFileStream("file:///home/omar/stream/train")
+    val lines = ssc.socketTextStream("localhost", 9999)
+//    val lines = ssc.textFileStream("file:///home/omar/stream/train")
 //    val words = lines.flatMap(_.split(" ").map(_.toInt))
 //    val pairs = words.map(word => (word, 1))
 //    val wordCounts = pairs.reduceByKey(_ + _)
@@ -28,11 +28,11 @@ object StreamingTests {
 //    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
 //    val wordCounts = pairs.reduceByKey(_ + _)
 
-    val model = new CluStreamModel(3,1,1,2,1000)
+    val model = new CluStreamModel(2,1,1,2,4)
     //model.initialize()
 
-//    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
-    model.run(lines.map(_.split(" ").map(_.toDouble)).map(arr => arr.dropRight(1)).map(DenseVector(_)))
+    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
+//    model.run(lines.map(_.split(" ").map(_.toDouble)).map(arr => arr.dropRight(1)).map(DenseVector(_)))
 
    // wordCounts.print()
     ssc.start()
