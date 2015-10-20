@@ -79,7 +79,7 @@ class CluStreamModel(
           }
           broadcastCentroids = rdd.context.broadcast(centroids)
 
-          //PRINT STUFF FOR DEBUGING 
+          //PRINT STUFF FOR DEBUGING
           microClusters.foreach {mc =>
             println("IDs " + mc.getIds.mkString(" "))
             println("CF1X: " + mc.getCf1x.toString)
@@ -87,13 +87,13 @@ class CluStreamModel(
             println("CF1T: " + mc.getCf1t.toString)
             println("CF2T: " + mc.getCf2t.toString)
             println("N: " + mc.getN.toString)
-
+            println()
           }
           println("Centers: ")
           broadcastCentroids.value.foreach(println)
           println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
-          println()
+
 
 
         } else { minInitPoints match {
