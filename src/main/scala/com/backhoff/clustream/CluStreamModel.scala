@@ -24,16 +24,16 @@ class CluStreamModel(
 
   private var time: Long = 0L
   private var microClusters: Array[MicroCluster] = null
-  private val centroids: Array[breeze.linalg.Vector[Double]] = Array.fill(q)(Vector.fill[Double](numDimensions)(0))
+  private val centroids: Array[(breeze.linalg.Vector[Double], Int)]  = Array.fill(q)(Vector.fill[Double](numDimensions)(0)) zip (0 until q)
   private var N: Long = 0L
-  private var broadcastCentroids: Broadcast[Array[breeze.linalg.Vector[Double]]] = null
+  private var broadcastCentroids: Broadcast[Array[(breeze.linalg.Vector[Double], Int)]] = null
   private var broadcastQ: Broadcast[Int] = null
   private var broadcastRMSD: Broadcast[Double] = null
   private var initialized = false
   private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
   private def initRand(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
-    broadcastCentroids = rdd.context.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())))
+    broadcastCentroids = rdd.context.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())) zip (0 until q))
     broadcastQ = rdd.context.broadcast(q)
     microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
     initialized = true
@@ -47,7 +47,7 @@ class CluStreamModel(
       val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
 
       broadcastQ = rdd.context.broadcast(q)
-      for (i <- clusters.clusterCenters.indices) centroids(i) = DenseVector(clusters.clusterCenters(i).toArray)
+      for (i <- clusters.clusterCenters.indices) centroids(i) = (DenseVector(clusters.clusterCenters(i).toArray), centroids(i)._2 )
       broadcastCentroids = rdd.context.broadcast(centroids)
 
       microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
@@ -55,7 +55,7 @@ class CluStreamModel(
       updateMicroClusters(assignations)
       var i = 0
       for (mc <- this.microClusters) {
-        if (mc.getN > 0) centroids(i) = mc.getCf1x :/ mc.getN.toDouble
+        if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2 )
         i += 1
       }
       initialized = true
@@ -74,7 +74,7 @@ class CluStreamModel(
           updateMicroClusters(assignations)
           var i = 0
           for (mc <- this.microClusters) {
-            if (mc.getN > 0) centroids(i) = mc.getCf1x :/ mc.getN.toDouble
+            if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2 )
             i += 1
           }
           broadcastCentroids = rdd.context.broadcast(centroids)
@@ -109,12 +109,12 @@ class CluStreamModel(
 
   private def mergeMicroClusters(): Unit = {}
 
-  private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, centroids: Array[Vector[Double]]): RDD[(Int, Vector[Double])] = {
+  private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, centroids: Array[(Vector[Double], Int)]): RDD[(Int, Vector[Double])] = {
     rdd.map { a =>
       val arr = Array.fill[(Int,Double)](q)(0,0)
       var i = 0
       for (c <- centroids) {
-        arr(i) = (i, squaredDistance(a, c))
+        arr(i) = (c._2, squaredDistance(a, c._1))
         i += 1
       }
       (arr.min(new OrderingDoubleTuple)._1, a)
