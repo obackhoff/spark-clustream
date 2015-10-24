@@ -5,13 +5,13 @@ package com.backhoff.clustream
  */
 
 import breeze.linalg._
+import breeze.stats.distributions.Gaussian
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{TaskContext, Partition, SparkContext, Logging}
+import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.{DeveloperApi, Experimental, Since}
-import org.apache.spark.util.Utils
-import org.apache.spark.util.random.XORShiftRandom
+
 
 @Experimental
 class CluStreamModel(
@@ -122,6 +122,20 @@ class CluStreamModel(
   }
 
   private def updateMicroClusters(assignations: RDD[(Int, Vector[Double])]): Unit = {
+
+    val rmsd = assignations.map { a =>
+      val nearMC = microClusters.find(mc => mc.getIds(0) == a._1).get
+      if(nearMC.getN > 1){
+        val mcCenter = nearMC.getCf1x :/ nearMC.getN.toDouble
+        (scala.math.sqrt( (1.0/nearMC.getN.toDouble) * ( (mcCenter - a._2) dot (mcCenter - a._2) ) ) , a._2)
+      } else
+        ( scala.math.sqrt(squaredDistance(a._2, broadcastCentroids.value.find( c => c._2 == a._1).get._1)), a._2 )
+    }
+
+    print("RMSD!!!!!!")
+    rmsd.foreach(println)
+    println("END RMSD!!!!")
+
     val pointCount = assignations.groupByKey().mapValues(a => a.size).collect()
     val sums = assignations.reduceByKey(_ :+ _).collect()
     val sumsSquares = assignations.mapValues(a => a :* a).reduceByKey(_ :+ _).collect()
