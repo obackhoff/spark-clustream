@@ -23,18 +23,24 @@ class CluStreamModel(
   extends Logging with Serializable {
 
   private var time: Long = 0L
+  private var N: Long = 0L
+
   private var microClusters: Array[MicroCluster] = null
   private val centroids: Array[(breeze.linalg.Vector[Double], Int)]  = Array.fill(q)(Vector.fill[Double](numDimensions)(0)) zip (0 until q)
-  private var N: Long = 0L
+  private val numPoints: Array[(Long, Int)] = Array.fill(q)(0L) zip (0 until q)
+
   private var broadcastCentroids: Broadcast[Array[(breeze.linalg.Vector[Double], Int)]] = null
+  private var broadcastNumPoints: Broadcast[Array[(Long, Int)]] = null
   private var broadcastQ: Broadcast[Int] = null
   private var broadcastRMSD: Broadcast[Double] = null
+
   private var initialized = false
   private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
   private def initRand(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
     broadcastCentroids = rdd.context.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())) zip (0 until q))
     broadcastQ = rdd.context.broadcast(q)
+    broadcastNumPoints = rdd.context.broadcast(numPoints)
     microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
     initialized = true
   }
@@ -46,18 +52,22 @@ class CluStreamModel(
       import org.apache.spark.mllib.clustering.KMeans
       val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
 
-      broadcastQ = rdd.context.broadcast(q)
       for (i <- clusters.clusterCenters.indices) centroids(i) = (DenseVector(clusters.clusterCenters(i).toArray), centroids(i)._2 )
-      broadcastCentroids = rdd.context.broadcast(centroids)
 
       microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
-      val assignations = assignToMicroCluster(rdd.context.parallelize(initArr), broadcastQ.value, broadcastCentroids.value)
+      val assignations = assignToMicroCluster(rdd.context.parallelize(initArr), q, centroids)
       updateMicroClusters(assignations)
+
       var i = 0
       for (mc <- this.microClusters) {
         if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2 )
+        numPoints(i) = (mc.getN.toLong, numPoints(i)._2 )
         i += 1
       }
+      broadcastCentroids = rdd.context.broadcast(centroids)
+      broadcastNumPoints = rdd.context.broadcast(numPoints)
+      broadcastQ = rdd.context.broadcast(q)
+
       initialized = true
     }
   }
@@ -75,9 +85,11 @@ class CluStreamModel(
           var i = 0
           for (mc <- this.microClusters) {
             if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2 )
+            numPoints(i) = (mc.getN.toLong, numPoints(i)._2 )
             i += 1
           }
           broadcastCentroids = rdd.context.broadcast(centroids)
+          broadcastNumPoints = rdd.context.broadcast(numPoints)
 
           //PRINT STUFF FOR DEBUGING
           microClusters.foreach {mc =>
@@ -93,7 +105,8 @@ class CluStreamModel(
           broadcastCentroids.value.foreach(println)
           println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
-
+          println("N alternativo: ")
+          broadcastNumPoints.value.foreach(println)
 
 
         } else { minInitPoints match {
@@ -123,18 +136,34 @@ class CluStreamModel(
 
   private def updateMicroClusters(assignations: RDD[(Int, Vector[Double])]): Unit = {
 
-    val rmsd = assignations.map { a =>
-      val nearMC = microClusters.find(mc => mc.getIds(0) == a._1).get
-      if(nearMC.getN > 1){
-        val mcCenter = nearMC.getCf1x :/ nearMC.getN.toDouble
-        (scala.math.sqrt( (1.0/nearMC.getN.toDouble) * ( (mcCenter - a._2) dot (mcCenter - a._2) ) ) , a._2)
-      } else
-        ( scala.math.sqrt(squaredDistance(a._2, broadcastCentroids.value.find( c => c._2 == a._1).get._1)), a._2 )
+//    if(initialized) {
+//      val rmsd = assignations.map { a =>
+//        val nearMC = microClusters.find(mc => mc.getIds(0) == a._1).get
+//        if (nearMC.getN > 1) {
+//          val mcCenter = nearMC.getCf1x :/ nearMC.getN.toDouble
+//          (scala.math.sqrt((1.0 / nearMC.getN.toDouble) * ((mcCenter - a._2) dot (mcCenter - a._2))), a._2)
+//        } else
+//          (scala.math.sqrt(squaredDistance(a._2, broadcastCentroids.value.find(c => c._2 == a._1).get._1)), a._2)
+//      }
+//      print("RMSD!!!!!!")
+//      rmsd.foreach(println)
+//      println("END RMSD!!!!")
+//    }
+    if(initialized) {
+      val rmsd = assignations.map { a =>
+        val numP = broadcastNumPoints.value.find(id => id._2 == a._1).get._1
+        val mcCenter = broadcastCentroids.value.find(id => id._2 == a._1).get._1
+        if (numP > 1) {
+          (scala.math.sqrt((1.0 / numP) * ((mcCenter - a._2) dot (mcCenter - a._2))), a._2)
+        } else
+          (scala.math.sqrt(squaredDistance(a._2, mcCenter)), a._2)
+      }
+      print("RMSD!!!!!!")
+      rmsd.foreach(println)
+      println("END RMSD!!!!")
     }
 
-    print("RMSD!!!!!!")
-    rmsd.foreach(println)
-    println("END RMSD!!!!")
+
 
     val pointCount = assignations.groupByKey().mapValues(a => a.size).collect()
     val sums = assignations.reduceByKey(_ :+ _).collect()
