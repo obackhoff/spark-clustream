@@ -120,8 +120,6 @@ class CluStreamModel(
           println("Centers: ")
 //          broadcastCentroids.value.foreach(println)
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-          println("RMSD: ")
-          //          broadcastCentroids.value.foreach(println)
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
           println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
@@ -171,19 +169,16 @@ class CluStreamModel(
 
   private def updateMicroClusters(assignations: RDD[(Int, Vector[Double])]): Unit = {
 
-//    if (initialized) {
-//      val rmsd = assignations.map { a =>
-//        val numP = broadcastNumPoints.value.find(id => id._2 == a._1).get._1
-//        val mcCenter = broadcastCentroids.value.find(id => id._2 == a._1).get._1
-//        if (numP > 1) {
-//          (scala.math.sqrt((1.0 / numP) * ((mcCenter - a._2) dot (mcCenter - a._2))), a._2)
-//        } else
-//          (scala.math.sqrt(squaredDistance(a._2, mcCenter)), a._2)
-//      }
-//      print("RMSD!!!!!!")
-//      rmsd.foreach(println)
-//      println("END RMSD!!!!")
-//    }
+    if (initialized) {
+      val test = assignations.map { a =>
+        val nearMCInfo = broadcastMCInfo.value.find(id => id._2 == a._1).get._1
+        val nearDistance = scala.math.sqrt(squaredDistance(a._2, nearMCInfo.centroid))
+
+        if (nearDistance <= 2 * nearMCInfo.rmsd) "IN"
+        else  "OUT"
+      }
+      test.foreach(print)
+    }
 
     val pointCount = assignations.groupByKey().mapValues(a => a.size).collect()
     val sums = assignations.reduceByKey(_ :+ _).collect()
