@@ -26,12 +26,8 @@ class CluStreamModel(
   private var N: Long = 0L
 
   private var microClusters: Array[MicroCluster] = null
-  private val centroids: Array[(breeze.linalg.Vector[Double], Int)] = Array.fill(q)(Vector.fill[Double](numDimensions)(0)) zip (0 until q)
-  private val numPoints: Array[(Long, Int)] = Array.fill(q)(0L) zip (0 until q)
   private var mcInfo: Array[(MicroClusterInfo, Int)] = null
 
-  private var broadcastCentroids: Broadcast[Array[(breeze.linalg.Vector[Double], Int)]] = null
-  private var broadcastNumPoints: Broadcast[Array[(Long, Int)]] = null
   private var broadcastQ: Broadcast[Int] = null
   private var broadcastMCInfo: Broadcast[Array[(MicroClusterInfo, Int)]] = null
 
@@ -46,9 +42,7 @@ class CluStreamModel(
     updateMicroClusters(assignations)
     var i = 0
     for (mc <- microClusters) {
-      //            if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2)
       if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
-      //            numPoints(i) = (mc.getN.toLong, numPoints(i)._2)
       mcInfo(i)._1.setN(mc.getN)
       if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
       else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
@@ -56,9 +50,7 @@ class CluStreamModel(
       i += 1
     }
 
-//    broadcastCentroids = rdd.context.broadcast(Array.fill(q)(Vector.fill[Double](numDimensions)(rand())) zip (0 until q))
     broadcastQ = rdd.context.broadcast(q)
-//    broadcastNumPoints = rdd.context.broadcast(numPoints)
     broadcastMCInfo = rdd.context.broadcast(mcInfo)
     initialized = true
   }
@@ -71,26 +63,21 @@ class CluStreamModel(
       val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
-//      for (i <- clusters.clusterCenters.indices) centroids(i) = (DenseVector(clusters.clusterCenters(i).toArray), centroids(i)._2)
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
 
       microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
-//      val assignations = assignToMicroCluster(rdd.context.parallelize(initArr), q, centroids)
       val assignations = assignToMicroCluster(rdd.context.parallelize(initArr), q, mcInfo)
       updateMicroClusters(assignations)
 
       var i = 0
       for (mc <- microClusters) {
-//        if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2)
         if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
-//        numPoints(i) = (mc.getN.toLong, numPoints(i)._2)
         mcInfo(i)._1.setN(mc.getN)
         if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
         else mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
         i += 1
       }
-//      broadcastCentroids = rdd.context.broadcast(centroids)
-//      broadcastNumPoints = rdd.context.broadcast(numPoints)
+
       broadcastQ = rdd.context.broadcast(q)
       broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
@@ -106,22 +93,18 @@ class CluStreamModel(
 
         if (initialized) {
 
-//          val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastCentroids.value)
           val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastMCInfo.value)
           updateMicroClusters(assignations)
           var i = 0
           for (mc <- microClusters) {
-//            if (mc.getN > 0) centroids(i) = (mc.getCf1x :/ mc.getN.toDouble, centroids(i)._2)
             if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
-//            numPoints(i) = (mc.getN.toLong, numPoints(i)._2)
             mcInfo(i)._1.setN(mc.getN)
             if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
             else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
             println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)}
             i += 1
           }
-//          broadcastCentroids = rdd.context.broadcast(centroids)
-//          broadcastNumPoints = rdd.context.broadcast(numPoints)
+
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
           //PRINT STUFF FOR DEBUGING
@@ -135,16 +118,13 @@ class CluStreamModel(
             println()
           }
           println("Centers: ")
-//          broadcastCentroids.value.foreach(println)
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
           println("RMSD: ")
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
           println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
           println("N alternativo: ")
-//          broadcastNumPoints.value.foreach(println)
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
-
 
         } else {
           minInitPoints match {
@@ -163,32 +143,15 @@ class CluStreamModel(
     var i = 0
     for (mc <- mcs) {
       arr(i) = scala.math.sqrt(squaredDistance(vec, mc._1.centroid))
-//      println("vaaalsssssss = ")
-//      print(vec)
-//      print(mc.cf1x)
-//      print(mc.n.toDouble)
       if (arr(i) == 0.0) arr(i) = Double.MaxValue
       i += 1
     }
-//    arr.foreach(println)
     arr.min
   }
 
   private def saveSnapshot(): Unit = {}
 
   private def mergeMicroClusters(): Unit = {}
-
-  private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, centroids: Array[(Vector[Double], Int)]): RDD[(Int, Vector[Double])] = {
-    rdd.map { a =>
-      val arr = Array.fill[(Int, Double)](q)(0, 0)
-      var i = 0
-      for (c <- centroids) {
-        arr(i) = (c._2, squaredDistance(a, c._1))
-        i += 1
-      }
-      (arr.min(new OrderingDoubleTuple)._1, a)
-    }
-  }
 
   private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
     rdd.map { a =>
