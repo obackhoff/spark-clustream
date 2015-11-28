@@ -113,23 +113,23 @@ class CluStreamModel(
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
           //PRINT STUFF FOR DEBUGING
-//          microClusters.foreach { mc =>
-//            println("IDs " + mc.getIds.mkString(" "))
-//            println("CF1X: " + mc.getCf1x.toString)
-//            println("CF2X: " + mc.getCf2x.toString)
-//            println("CF1T: " + mc.getCf1t.toString)
-//            println("CF2T: " + mc.getCf2t.toString)
-//            println("N: " + mc.getN.toString)
-//            println()
-//          }
-//          println("Centers: ")
-//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-//          println("RMSD: ")
-//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
-//          println("Total time units elapsed: " + this.time)
-//          println("Total number of points: " + N)
-//          println("N alternativo: ")
-//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
+          microClusters.foreach { mc =>
+            println("IDs " + mc.getIds.mkString(" "))
+            println("CF1X: " + mc.getCf1x.toString)
+            println("CF2X: " + mc.getCf2x.toString)
+            println("CF1T: " + mc.getCf1t.toString)
+            println("CF2T: " + mc.getCf2t.toString)
+            println("N: " + mc.getN.toString)
+            println()
+          }
+          println("Centers: ")
+          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
+          println("RMSD: ")
+          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
+          println("Total time units elapsed: " + this.time)
+          println("Total number of points: " + N)
+          println("N alternativo: ")
+          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
 
         } else {
           minInitPoints match {
@@ -144,14 +144,14 @@ class CluStreamModel(
 
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {
 
-    val arr = Array.fill[Double](q)(0.0)
+    var minDist = Double.PositiveInfinity
     var i = 0
     for (mc <- mcs) {
-      arr(i) = squaredDistance(vec, mc._1.centroid)
-      if (arr(i) == 0.0) arr(i) = Double.PositiveInfinity
+      val dist = squaredDistance(vec, mc._1.centroid)
+      if (dist != 0.0 && dist < minDist) minDist = dist
       i += 1
     }
-    scala.math.sqrt(arr.min)
+    scala.math.sqrt(minDist)
   }
 
   private def saveSnapshot(): Unit = {}
@@ -160,13 +160,20 @@ class CluStreamModel(
 
   private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
     rdd.map { a =>
-      val arr = Array.fill[(Int, Double)](q)(0, 0)
+      //val arr = Array.fill[(Int, Double)](q)(0, 0)
+      var minDist = Double.PositiveInfinity
+      var minIndex = Int.MaxValue
       var i = 0
       for (mc <- mcInfo) {
-        arr(i) = (mc._2, squaredDistance(a, mc._1.centroid))
+        //arr(i) = (mc._2, squaredDistance(a, mc._1.centroid))
+        val dist  = squaredDistance(a, mc._1.centroid)
+        if (dist < minDist) {
+          minDist = dist
+          minIndex = mc._2
+        }
         i += 1
       }
-      (arr.min(new OrderingDoubleTuple)._1, a)
+      (minIndex, a)
     }
   }
 
@@ -210,6 +217,7 @@ class CluStreamModel(
     if (dataOut != null){
       // Do something
 //      dataOut.foreach(print)
+
       dataOut.unpersist(blocking = false)
     }
     dataIn.unpersist(blocking = false)
