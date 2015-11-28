@@ -18,22 +18,22 @@ object StreamingKMeans {
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
     val ssc = new StreamingContext(sc, Milliseconds(3000))
-    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
-    //val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
+//    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
+    val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val testData = ssc.textFileStream("/home/omar/stream/testing").map(LabeledPoint.parse)
    // val testData = ssc.socketTextStream("localhost", 9998).map(LabeledPoint.parse)
-    val numDimensions = 2
-    val numClusters = 2
+    val numDimensions = 100
+    val numClusters = 1000
     val model = new StreamingKMeans()
       .setK(numClusters)
       .setDecayFactor(0.5)
-      .setRandomCenters(numDimensions, 10.0)
+      .setRandomCenters(numDimensions, 0.0)
 
     //val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
     val oldCenters = new StaticVar(Array.fill(numDimensions)(Vectors.dense(Array.fill(numDimensions)(0.0))))
-    val listener = new MyListener(model.latestModel().clusterCenters, oldCenters)
-
-    ssc.addStreamingListener(listener)
+//    val listener = new MyListener(model.latestModel().clusterCenters, oldCenters)
+//
+//    ssc.addStreamingListener(listener)
 
     model.trainOn(trainingData)
     //model.predictOnValues(testData.map(lp => (lp.label, lp.features))).print()

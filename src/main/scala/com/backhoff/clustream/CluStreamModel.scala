@@ -5,7 +5,6 @@ package com.backhoff.clustream
   */
 
 import breeze.linalg._
-import breeze.stats.distributions.Gaussian
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
@@ -46,7 +45,8 @@ class CluStreamModel(
       mcInfo(i)._1.setN(mc.getN)
       if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
       else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
-        println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)}
+//        println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
+      }
       i += 1
     }
 
@@ -60,13 +60,17 @@ class CluStreamModel(
     if (initArr.length >= minInitPoints) {
 
       import org.apache.spark.mllib.clustering.KMeans
-      val clusters = KMeans.train(rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))), q, 20)
+      val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
+      val clusters = KMeans.train(trainingSet, q, 10)
+      trainingSet.unpersist(blocking = false)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
 
       microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
-      val assignations = assignToMicroCluster(rdd.context.parallelize(initArr), q, mcInfo)
+      val tempRDD = rdd.context.parallelize(initArr)
+      val assignations = assignToMicroCluster(tempRDD, q, mcInfo)
+      tempRDD.unpersist(blocking = false)
       updateMicroClusters(assignations)
 
       var i = 0
@@ -101,30 +105,31 @@ class CluStreamModel(
             mcInfo(i)._1.setN(mc.getN)
             if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
             else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
-            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)}
+//            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
+            }
             i += 1
           }
 
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
           //PRINT STUFF FOR DEBUGING
-          microClusters.foreach { mc =>
-            println("IDs " + mc.getIds.mkString(" "))
-            println("CF1X: " + mc.getCf1x.toString)
-            println("CF2X: " + mc.getCf2x.toString)
-            println("CF1T: " + mc.getCf1t.toString)
-            println("CF2T: " + mc.getCf2t.toString)
-            println("N: " + mc.getN.toString)
-            println()
-          }
-          println("Centers: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-          println("RMSD: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
-          println("Total time units elapsed: " + this.time)
-          println("Total number of points: " + N)
-          println("N alternativo: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
+//          microClusters.foreach { mc =>
+//            println("IDs " + mc.getIds.mkString(" "))
+//            println("CF1X: " + mc.getCf1x.toString)
+//            println("CF2X: " + mc.getCf2x.toString)
+//            println("CF1T: " + mc.getCf1t.toString)
+//            println("CF2T: " + mc.getCf2t.toString)
+//            println("N: " + mc.getN.toString)
+//            println()
+//          }
+//          println("Centers: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
+//          println("RMSD: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
+//          println("Total time units elapsed: " + this.time)
+//          println("Total number of points: " + N)
+//          println("N alternativo: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
 
         } else {
           minInitPoints match {
@@ -142,11 +147,11 @@ class CluStreamModel(
     val arr = Array.fill[Double](q)(0.0)
     var i = 0
     for (mc <- mcs) {
-      arr(i) = scala.math.sqrt(squaredDistance(vec, mc._1.centroid))
-      if (arr(i) == 0.0) arr(i) = Double.MaxValue
+      arr(i) = squaredDistance(vec, mc._1.centroid)
+      if (arr(i) == 0.0) arr(i) = Double.PositiveInfinity
       i += 1
     }
-    arr.min
+    scala.math.sqrt(arr.min)
   }
 
   private def saveSnapshot(): Unit = {}
@@ -184,8 +189,8 @@ class CluStreamModel(
     if (dataInAndOut != null){
       dataIn = dataInAndOut.filter(_._1 == "IN").map(a => a._2)
       dataOut = dataInAndOut.filter(_._1 == "OUT").map(a => a._2)
-      dataInAndOut.unpersist()
-      assignations.unpersist()
+      dataInAndOut.unpersist(blocking = false)
+      assignations.unpersist(blocking = false)
     } else dataIn = assignations
 
     val pointCount = dataIn.groupByKey().mapValues(a => a.size).collect()
@@ -204,8 +209,10 @@ class CluStreamModel(
 
     if (dataOut != null){
       // Do something
-      dataOut.foreach(print)
+//      dataOut.foreach(print)
+      dataOut.unpersist(blocking = false)
     }
+    dataIn.unpersist(blocking = false)
 
   }
   // END OF MODEL
