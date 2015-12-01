@@ -21,6 +21,14 @@ class CluStreamModel(
                       val minInitPoints: Int)
   extends Logging with Serializable {
 
+  def timer[R](block: => R): R = {
+    val t0 = System.nanoTime()
+    val result = block    // call-by-name
+    val t1 = System.nanoTime()
+    println("Elapsed time: " + (t1 - t0)/1000000 + "ms")
+    result
+  }
+
   private var time: Long = 0L
   private var N: Long = 0L
 
@@ -100,36 +108,38 @@ class CluStreamModel(
           val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastMCInfo.value)
           updateMicroClusters(assignations)
           var i = 0
-          for (mc <- microClusters) {
-            if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
-            mcInfo(i)._1.setN(mc.getN)
-            if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
-            else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
-//            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
-            }
-            i += 1
-          }
+           for (mc <- microClusters) {
+             if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
+             mcInfo(i)._1.setN(mc.getN)
+             if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
+             else {
+               mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
+               //            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
+             }
+             i += 1
+           }
 
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
           //PRINT STUFF FOR DEBUGING
-          microClusters.foreach { mc =>
-            println("IDs " + mc.getIds.mkString(" "))
-            println("CF1X: " + mc.getCf1x.toString)
-            println("CF2X: " + mc.getCf2x.toString)
-            println("CF1T: " + mc.getCf1t.toString)
-            println("CF2T: " + mc.getCf2t.toString)
-            println("N: " + mc.getN.toString)
-            println()
-          }
-          println("Centers: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-          println("RMSD: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
-          println("Total time units elapsed: " + this.time)
-          println("Total number of points: " + N)
-          println("N alternativo: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
+
+//          microClusters.foreach { mc =>
+//            println("IDs " + mc.getIds.mkString(" "))
+//            println("CF1X: " + mc.getCf1x.toString)
+//            println("CF2X: " + mc.getCf2x.toString)
+//            println("CF1T: " + mc.getCf1t.toString)
+//            println("CF2T: " + mc.getCf2t.toString)
+//            println("N: " + mc.getN.toString)
+//            println()
+//          }
+//          println("Centers: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
+//          println("RMSD: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
+//          println("Total time units elapsed: " + this.time)
+//          println("Total number of points: " + N)
+//          println("N alternativo: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
 
         } else {
           minInitPoints match {
@@ -141,6 +151,7 @@ class CluStreamModel(
       }
     }
   }
+
 
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {
 
@@ -183,37 +194,46 @@ class CluStreamModel(
     var dataIn: RDD[(Int, Vector[Double])] = null
     var dataOut: RDD[(Int, Vector[Double])] = null
 
-    if (initialized) {
+// cache() plays an important role on performance :)
+    println("compare RMSD")
+    timer {
+      if (initialized) {
         dataInAndOut = assignations.map { a =>
-        val nearMCInfo = broadcastMCInfo.value.find(id => id._2 == a._1).get._1
-        val nearDistance = scala.math.sqrt(squaredDistance(a._2, nearMCInfo.centroid))
+          val nearMCInfo = broadcastMCInfo.value.find(id => id._2 == a._1).get._1
+          val nearDistance = scala.math.sqrt(squaredDistance(a._2, nearMCInfo.centroid))
 
-        if (nearDistance <= 2 * nearMCInfo.rmsd) ("IN", a)
-        else  ("OUT", a)
+          if (nearDistance <= 2 * nearMCInfo.rmsd) ("IN", a)
+          else ("OUT", a)
+        }
       }
     }
+    println("separate data")
+    timer {
+      if (dataInAndOut != null) {
+        dataIn = dataInAndOut.filter(_._1 == "IN").map(a => a._2).cache()
+        dataOut = dataInAndOut.filter(_._1 == "OUT").map(a => a._2).cache()
+        dataInAndOut.unpersist(blocking = false)
+        assignations.unpersist(blocking = false)
+      } else dataIn = assignations
+    }
+    println("calc info")
+    val sums = timer{dataIn.reduceByKey(_ :+ _).collect()}
+    val sumsSquares = timer{dataIn.mapValues(a => a :* a).reduceByKey(_ :+ _).collect()}
+    val pointCount = timer {dataIn.groupByKey().mapValues(a => a.size).collect()}
 
-    if (dataInAndOut != null){
-      dataIn = dataInAndOut.filter(_._1 == "IN").map(a => a._2)
-      dataOut = dataInAndOut.filter(_._1 == "OUT").map(a => a._2)
-      dataInAndOut.unpersist(blocking = false)
-      assignations.unpersist(blocking = false)
-    } else dataIn = assignations
 
-    val pointCount = dataIn.groupByKey().mapValues(a => a.size).collect()
-    val sums = dataIn.reduceByKey(_ :+ _).collect()
-    val sumsSquares = dataIn.mapValues(a => a :* a).reduceByKey(_ :+ _).collect()
-
-    for (mc <- microClusters) {
-      for (s <- sums) if (mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
-      for (ss <- sumsSquares) if (mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
-      for (pc <- pointCount) if (mc.getIds(0) == pc._1) {
-        mc.setN(mc.n + pc._2)
-        mc.setCf1t(mc.cf1t + pc._2 * this.time)
-        mc.setCf2t(mc.cf2t + pc._2 * (this.time * this.time))
+    println("update microClusters")
+    timer {
+      for (mc <- microClusters) {
+        for (s <- sums) if (mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
+        for (ss <- sumsSquares) if (mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
+        for (pc <- pointCount) if (mc.getIds(0) == pc._1) {
+          mc.setN(mc.n + pc._2)
+          mc.setCf1t(mc.cf1t + pc._2 * this.time)
+          mc.setCf2t(mc.cf2t + pc._2 * (this.time * this.time))
+        }
       }
     }
-
     if (dataOut != null){
       // Do something
 //      dataOut.foreach(print)
