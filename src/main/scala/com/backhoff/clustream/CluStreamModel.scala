@@ -23,9 +23,9 @@ class CluStreamModel(
 
   def timer[R](block: => R): R = {
     val t0 = System.nanoTime()
-    val result = block    // call-by-name
+    val result = block // call-by-name
     val t1 = System.nanoTime()
-    println("Elapsed time: " + (t1 - t0)/1000000 + "ms")
+    println("Elapsed time: " + (t1 - t0) / 1000000 + "ms")
     result
   }
 
@@ -53,8 +53,9 @@ class CluStreamModel(
       if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
       mcInfo(i)._1.setN(mc.getN)
       if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
-      else {mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
-//        println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
+      else {
+        mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
+        //        println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
       }
       i += 1
     }
@@ -110,36 +111,36 @@ class CluStreamModel(
           val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastMCInfo.value)
           updateMicroClusters(assignations)
           var i = 0
-           for (mc <- microClusters) {
-             mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
-             if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
-             mcInfo(i)._1.setN(mc.getN)
-             if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
-             else {
-               mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
-               //            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
-             }
-             i += 1
-           }
+          for (mc <- microClusters) {
+            mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
+            if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
+            mcInfo(i)._1.setN(mc.getN)
+            if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
+            else {
+              mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
+              //            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
+            }
+            i += 1
+          }
 
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
           //PRINT STUFF FOR DEBUGING
 
           microClusters.foreach { mc =>
-//            println("IDs " + mc.getIds.mkString(" "))
-//            println("CF1X: " + mc.getCf1x.toString)
-//            println("CF2X: " + mc.getCf2x.toString)
-//            println("CF1T: " + mc.getCf1t.toString)
-//            println("CF2T: " + mc.getCf2t.toString)
-//            println("N: " + mc.getN.toString)
-//            println()
+            //            println("IDs " + mc.getIds.mkString(" "))
+            //            println("CF1X: " + mc.getCf1x.toString)
+            //            println("CF2X: " + mc.getCf2x.toString)
+            //            println("CF1T: " + mc.getCf1t.toString)
+            //            println("CF2T: " + mc.getCf2t.toString)
+            //            println("N: " + mc.getN.toString)
+            //            println()
           }
           println("Centers: ")
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-//          println("RMSD: ")
-//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
-//          println("Total time units elapsed: " + this.time)
+          //          println("RMSD: ")
+          //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
+          //          println("Total time units elapsed: " + this.time)
           println("Total number of points: " + N)
           println("N alternativo: ")
           broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
@@ -165,7 +166,7 @@ class CluStreamModel(
       if (accum >= p)
         return item
     }
-    sys.error(f"this should never happen")  // needed so it will compile
+    sys.error(f"this should never happen") // needed so it will compile
   }
 
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {
@@ -184,11 +185,15 @@ class CluStreamModel(
     squaredDistance(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble, microClusters(idx2).getCf1x :/ microClusters(idx2).getN.toDouble)
   }
 
+  private def squaredDistPointToMCArrIdx(idx1: Int, point: Vector[Double]): Double = {
+    squaredDistance(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble, point)
+  }
+
   private def getArrIdxMC(idx0: Int): Int = {
     var id = -1
     var i = 0
-    for(mc <- microClusters) {
-      if(mc.getIds(0) == idx0) id = i
+    for (mc <- microClusters) {
+      if (mc.getIds(0) == idx0) id = i
       i += 1
     }
     id
@@ -198,24 +203,38 @@ class CluStreamModel(
 
   private def mergeMicroClusters(idx1: Int, idx2: Int): Unit = {
 
-    microClusters(idx1).setCf1x( microClusters(idx1).getCf1x :+ microClusters(idx2).getCf1x)
-    microClusters(idx1).setCf2x( microClusters(idx1).getCf2x :+ microClusters(idx2).getCf2x)
-    microClusters(idx1).setCf1t( microClusters(idx1).getCf1t :+ microClusters(idx2).getCf1t)
-    microClusters(idx1).setCf2t( microClusters(idx1).getCf2t :+ microClusters(idx2).getCf2t)
-    microClusters(idx1).setN( microClusters(idx1).getN + microClusters(idx2).getN)
-    microClusters(idx1).setIds( microClusters(idx1).getIds ++ microClusters(idx2).getIds)
+    microClusters(idx1).setCf1x(microClusters(idx1).getCf1x :+ microClusters(idx2).getCf1x)
+    microClusters(idx1).setCf2x(microClusters(idx1).getCf2x :+ microClusters(idx2).getCf2x)
+    microClusters(idx1).setCf1t(microClusters(idx1).getCf1t + microClusters(idx2).getCf1t)
+    microClusters(idx1).setCf2t(microClusters(idx1).getCf2t + microClusters(idx2).getCf2t)
+    microClusters(idx1).setN(microClusters(idx1).getN + microClusters(idx2).getN)
+    microClusters(idx1).setIds(microClusters(idx1).getIds ++ microClusters(idx2).getIds)
 
-//                mcInfo(idx1)._1.setCentroid(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble)
-//                mcInfo(idx1)._1.setN(microClusters(idx1).getN)
-//                mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n)))
+    mcInfo(idx1)._1.setCentroid(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble)
+    mcInfo(idx1)._1.setN(microClusters(idx1).getN)
+    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n)))
+
+  }
+
+  private def addPointMicroClusters(idx1: Int, point: Vector[Double]): Unit = {
+
+    microClusters(idx1).setCf1x(microClusters(idx1).getCf1x :+ point)
+    microClusters(idx1).setCf2x(microClusters(idx1).getCf2x :+ (point :* point))
+    microClusters(idx1).setCf1t(microClusters(idx1).getCf1t + this.time)
+    microClusters(idx1).setCf2t(microClusters(idx1).getCf2t + (this.time * this.time))
+    microClusters(idx1).setN(microClusters(idx1).getN + 1)
+
+    mcInfo(idx1)._1.setCentroid(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble)
+    mcInfo(idx1)._1.setN(microClusters(idx1).getN)
+    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n)))
 
   }
 
   private def replaceMicroCluster(idx: Int, point: Vector[Double]): Unit = {
     microClusters(idx) = new MicroCluster(point :* point, point, this.time * this.time, this.time, 1L)
-//            mcInfo(idx)._1.setCentroid(point)
-//            mcInfo(idx)._1.setN(1L)
-//            mcInfo(idx)._1.setRmsd(distanceNearestMC(mcInfo(idx)._1.centroid, mcInfo))
+    mcInfo(idx)._1.setCentroid(point)
+    mcInfo(idx)._1.setN(1L)
+    mcInfo(idx)._1.setRmsd(distanceNearestMC(mcInfo(idx)._1.centroid, mcInfo))
   }
 
   private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
@@ -226,7 +245,7 @@ class CluStreamModel(
       var i = 0
       for (mc <- mcInfo) {
         //arr(i) = (mc._2, squaredDistance(a, mc._1.centroid))
-        val dist  = squaredDistance(a, mc._1.centroid)
+        val dist = squaredDistance(a, mc._1.centroid)
         if (dist < minDist) {
           minDist = dist
           minIndex = mc._2
@@ -294,7 +313,7 @@ class CluStreamModel(
     timer {
       if (dataOut != null) {
         val mLastPoints: Double = 100.0
-        val delta = 128
+        val delta = 4
         var mTimeStamp: Double = 0.0
         val recencyThreshhold = this.time - delta
         var safeDeleteMC: Array[Int] = Array()
@@ -308,26 +327,46 @@ class CluStreamModel(
           if (mc.getN < 2 * mLastPoints) mTimeStamp = meanTimeStamp
           else mTimeStamp = breeze.stats.distributions.Gaussian(meanTimeStamp, sdTimeStamp).icdf(mLastPoints / (2 * mc.getN.toDouble))
 
-          if(mTimeStamp < recencyThreshhold) safeDeleteMC = safeDeleteMC :+ i
+          if (mTimeStamp < recencyThreshhold) safeDeleteMC = safeDeleteMC :+ i
           else keepOrMergeMC = keepOrMergeMC :+ i
 
           i += 1
         }
 
         var j = 0
-        for(point <- dataOut.collect()){
-          if(safeDeleteMC.length > 0 && safeDeleteMC.lift(j).isDefined) {
+        var newMC: Array[Int] = Array()
+
+        for (point <- dataOut.collect()) {
+
+          var minDist = Double.PositiveInfinity
+          var idMinDist = 0
+          for(id <- newMC){
+            val dist = squaredDistPointToMCArrIdx(id, point._2)
+            if (dist < minDist) {
+              minDist = dist
+              idMinDist = id
+            }
+          }
+
+          var rmsd = 0.0
+          if (microClusters(idMinDist).getN > 1)
+            rmsd = scala.math.sqrt(sum(microClusters(idMinDist).cf2x) / microClusters(idMinDist).n - sum(microClusters(idMinDist).cf1x.map(a => a * a)) / (microClusters(idMinDist).n * microClusters(idMinDist).n))
+          else rmsd = distanceNearestMC(mcInfo(idMinDist)._1.centroid, broadcastMCInfo.value)
+
+          if (minDist <= 2 * rmsd) addPointMicroClusters(idMinDist, point._2)
+          else if (safeDeleteMC.lift(j).isDefined) {
             replaceMicroCluster(safeDeleteMC(j), point._2)
+            newMC = newMC :+ safeDeleteMC(j)
             j += 1
-          }else{
+          } else {
             var minDist = Double.PositiveInfinity
             var idx1 = 0
             var idx2 = 0
-            for(a  <- keepOrMergeMC.indices)
-              for(b <- (0 + a) until keepOrMergeMC.length){
+            for (a <- keepOrMergeMC.indices)
+              for (b <- (0 + a) until keepOrMergeMC.length) {
                 var dist = Double.PositiveInfinity
-                if(keepOrMergeMC(a) != keepOrMergeMC(b) ) dist = squaredDistTwoMCArrIdx(keepOrMergeMC(a), keepOrMergeMC(b))
-                if(dist < minDist){
+                if (keepOrMergeMC(a) != keepOrMergeMC(b)) dist = squaredDistTwoMCArrIdx(keepOrMergeMC(a), keepOrMergeMC(b))
+                if (dist < minDist) {
                   minDist = dist
                   idx1 = keepOrMergeMC(a)
                   idx2 = keepOrMergeMC(b)
@@ -335,14 +374,15 @@ class CluStreamModel(
               }
             mergeMicroClusters(idx1, idx2)
             replaceMicroCluster(idx2, point._2)
+            newMC = newMC :+ idx2
           }
         }
-
       }
       dataIn.unpersist(blocking = false)
 
     }
   }
+
   // END OF MODEL
 }
 
@@ -424,15 +464,15 @@ private class MicroClusterInfo(
                                 var rmsd: Double,
                                 var n: Long) extends Serializable {
 
-  def setCentroid(centroid: Vector[Double]): Unit ={
+  def setCentroid(centroid: Vector[Double]): Unit = {
     this.centroid = centroid
   }
 
-  def setRmsd(rmsd: Double): Unit ={
+  def setRmsd(rmsd: Double): Unit = {
     this.rmsd = rmsd
   }
 
-  def setN(n: Long): Unit ={
+  def setN(n: Long): Unit = {
     this.n = n
   }
 }
