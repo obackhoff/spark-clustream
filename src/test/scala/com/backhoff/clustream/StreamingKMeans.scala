@@ -16,17 +16,17 @@ object StreamingKMeans {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
     val sc = new SparkContext(conf)
-    sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(3000))
+    //sc.setLogLevel("ERROR")
+    val ssc = new StreamingContext(sc, Milliseconds(1000))
 //    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
     val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     //val testData = ssc.textFileStream("/home/omar/stream/testing").map(LabeledPoint.parse)
    // val testData = ssc.socketTextStream("localhost", 9998).map(LabeledPoint.parse)
     val numDimensions = 2
-    val numClusters = 1000
+    val numClusters = 2
     val model = new StreamingKMeans()
       .setK(numClusters)
-      .setDecayFactor(0.5)
+      .setDecayFactor(0)
       .setRandomCenters(numDimensions, 0.0)
 
     //val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
