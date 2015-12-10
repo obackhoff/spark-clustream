@@ -7,6 +7,7 @@ package com.backhoff.clustream
 import org.apache.spark.streaming.scheduler.{StreamingListenerBatchCompleted, StreamingListener}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming._
+
 import breeze.linalg._
 
 object StreamingTests {
@@ -32,7 +33,7 @@ object StreamingTests {
 //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(20,1,1,2,2000)
+    val model = new CluStreamOnline(20,1,1,2,100)
     val clustream = new CluStream(2,0,model)
     ssc.addStreamingListener(new PrintClustersListener(clustream,sc))
 //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -46,9 +47,18 @@ object StreamingTests {
 }
 
 private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkContext) extends StreamingListener {
+  def timer[R](block: => R): R = {
+    val t0 = System.nanoTime()
+    val result = block // call-by-name
+    val t1 = System.nanoTime()
+    println("Elapsed time: " + (t1 - t0) / 1000000 + "ms")
+    result
+  }
+
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
     if(batchCompleted.batchInfo.numRecords > 0) {
-      val clusters = clustream.clusterKMeans(sc)
+      print("FakeKMeans ")
+      val clusters = timer{clustream.clusterFakeKMeans(sc,1000)}
       if(clusters != null) {
         println("MacroClusters Ceneters")
         clusters.clusterCenters.foreach(println)
