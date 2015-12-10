@@ -4,6 +4,7 @@ package com.backhoff.clustream
  * Created by omar on 9/20/15.
  */
 
+import org.apache.spark.streaming.scheduler.{StreamingListenerBatchCompleted, StreamingListener}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming._
 import breeze.linalg._
@@ -14,7 +15,7 @@ object StreamingTests {
 //    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("spark://192.168.0.119:7077")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(2000))
+    val ssc = new StreamingContext(sc, Milliseconds(1000))
    // ssc.checkpoint("/home/omar/stream/checkpoint")
     val lines = ssc.socketTextStream("localhost", 9999)
 //    val lines = ssc.textFileStream("file:///home/omar/stream/train")
@@ -30,14 +31,28 @@ object StreamingTests {
 //    val pairs = words.flatMap(a => a).transform(_.map(a => (a._2,a._1)))
 //    val wordCounts = pairs.reduceByKey(_ + _)
 
-    val model = new CluStreamModel(20,1,1,2,2000)
-    //model.initialize()
 
+    val model = new CluStreamOnline(20,1,1,2,2000)
+    val clustream = new CluStream(2,0,model)
+    ssc.addStreamingListener(new PrintClustersListener(clustream,sc))
 //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
-    model.run(lines.map(_.split(" ").map(_.toDouble)).map(arr => arr.dropRight(1)).map(DenseVector(_)))
+    clustream.startOnline(lines.map(_.split(" ").map(_.toDouble)).map(arr => arr.dropRight(1)).map(DenseVector(_)))
 
    // wordCounts.print()
     ssc.start()
     ssc.awaitTermination()
+  }
+
+}
+
+private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkContext) extends StreamingListener {
+  override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
+    if(batchCompleted.batchInfo.numRecords > 0) {
+      val clusters = clustream.clusterKMeans(sc)
+      if(clusters != null) {
+        println("MacroClusters Ceneters")
+        clusters.clusterCenters.foreach(println)
+      }
+    }
   }
 }

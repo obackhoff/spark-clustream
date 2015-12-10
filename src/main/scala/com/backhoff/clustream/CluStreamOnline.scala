@@ -13,7 +13,7 @@ import org.apache.spark.annotation.{DeveloperApi, Experimental, Since}
 
 
 @Experimental
-class CluStreamModel(
+class CluStreamOnline(
                       val q: Int,
                       val alpha: Int,
                       val alphaModifier: Int,
@@ -29,6 +29,10 @@ class CluStreamModel(
     result
   }
 
+  private val mLastPoints: Double = 300.0
+  private val delta = 4
+  private val tFactor = 2
+
   private var time: Long = 0L
   private var N: Long = 0L
 
@@ -38,7 +42,7 @@ class CluStreamModel(
   private var broadcastQ: Broadcast[Int] = null
   private var broadcastMCInfo: Broadcast[Array[(MicroClusterInfo, Int)]] = null
 
-  private var initialized = false
+  var initialized = false
   private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
   private def initRand(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
@@ -136,14 +140,14 @@ class CluStreamModel(
             //            println("N: " + mc.getN.toString)
             //            println()
           }
-          println("Centers: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
+//          println("Centers: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
           //          println("RMSD: ")
           //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
           //          println("Total time units elapsed: " + this.time)
-          println("Total number of points: " + N)
-          println("N alternativo: ")
-          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
+//          println("Total number of points: " + N)
+//          println("N alternativo: ")
+//          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
 
         } else {
           minInitPoints match {
@@ -156,17 +160,8 @@ class CluStreamModel(
     }
   }
 
-  private def sample[A](dist: Map[A, Double]): A = {
-    val p = scala.util.Random.nextDouble
-    val it = dist.iterator
-    var accum = 0.0
-    while (it.hasNext) {
-      val (item, itemProb) = it.next
-      accum += itemProb
-      if (accum >= p)
-        return item
-    }
-    sys.error(f"this should never happen") // needed so it will compile
+  def getMicroClusters(): Array[MicroCluster] = {
+    this.microClusters
   }
 
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {
@@ -270,7 +265,7 @@ class CluStreamModel(
           val nearMCInfo = broadcastMCInfo.value.find(id => id._2 == a._1).get._1
           val nearDistance = scala.math.sqrt(squaredDistance(a._2, nearMCInfo.centroid))
 
-          if (nearDistance <= 2 * nearMCInfo.rmsd) (1, a)
+          if (nearDistance <= tFactor * nearMCInfo.rmsd) (1, a)
           else (0, a)
         }
       }
@@ -312,8 +307,6 @@ class CluStreamModel(
     println("Deal with outliers")
     timer {
       if (dataOut != null) {
-        val mLastPoints: Double = 100.0
-        val delta = 4
         var mTimeStamp: Double = 0.0
         val recencyThreshhold = this.time - delta
         var safeDeleteMC: Array[Int] = Array()
@@ -324,8 +317,8 @@ class CluStreamModel(
           val meanTimeStamp = if (mc.getN > 0) mc.getCf1t.toDouble / mc.getN.toDouble else 0
           val sdTimeStamp = scala.math.sqrt(mc.getCf2t.toDouble / mc.getN.toDouble - meanTimeStamp * meanTimeStamp)
 
-          if (mc.getN < 2 * mLastPoints) mTimeStamp = meanTimeStamp
-          else mTimeStamp = breeze.stats.distributions.Gaussian(meanTimeStamp, sdTimeStamp).icdf(mLastPoints / (2 * mc.getN.toDouble))
+          if (mc.getN < tFactor * mLastPoints) mTimeStamp = meanTimeStamp
+          else mTimeStamp = breeze.stats.distributions.Gaussian(meanTimeStamp, sdTimeStamp).icdf(1 - mLastPoints / (2 * mc.getN.toDouble))
 
           if (mTimeStamp < recencyThreshhold) safeDeleteMC = safeDeleteMC :+ i
           else keepOrMergeMC = keepOrMergeMC :+ i
@@ -395,7 +388,7 @@ private object MicroCluster extends Serializable {
   }
 }
 
-private class MicroCluster(
+protected class MicroCluster(
                             var cf2x: breeze.linalg.Vector[Double],
                             var cf1x: breeze.linalg.Vector[Double],
                             var cf2t: Long,
@@ -477,7 +470,7 @@ private class MicroClusterInfo(
   }
 }
 
-private object CluStreamModel {
+private object CluStreamOnline {
   private val RANDOM = "random"
   private val KMEANS = "kmeans"
 }
