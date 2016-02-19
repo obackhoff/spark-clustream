@@ -15,8 +15,6 @@ import org.apache.spark.annotation.{DeveloperApi, Experimental, Since}
 @Experimental
 class CluStreamOnline(
                       val q: Int,
-                      val alpha: Int,
-                      val alphaModifier: Int,
                       val numDimensions: Int,
                       val minInitPoints: Int)
   extends Logging with Serializable {
@@ -162,6 +160,10 @@ class CluStreamOnline(
 
   def getMicroClusters(): Array[MicroCluster] = {
     this.microClusters
+  }
+
+  def getCurrentTime(): Long = {
+    this.time
   }
 
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {

@@ -33,7 +33,7 @@ object StreamingTests {
 //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(20,1,1,2,100)
+    val model = new CluStreamOnline(20,2,100)
     val clustream = new CluStream(2,0,model)
     ssc.addStreamingListener(new PrintClustersListener(clustream,sc))
 //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -58,7 +58,7 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
     if(batchCompleted.batchInfo.numRecords > 0) {
       print("FakeKMeans ")
-      val clusters = timer{clustream.clusterFakeKMeans(sc,1000)}
+      val clusters = timer{clustream.fakeKMeans(sc,1000)}
       if(clusters != null) {
         println("MacroClusters Ceneters")
         clusters.clusterCenters.foreach(println)
