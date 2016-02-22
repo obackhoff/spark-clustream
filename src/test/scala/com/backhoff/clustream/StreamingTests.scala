@@ -16,7 +16,7 @@ object StreamingTests {
 //    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("spark://192.168.0.119:7077")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(1000))
+    val ssc = new StreamingContext(sc, Milliseconds(500))
    // ssc.checkpoint("/home/omar/stream/checkpoint")
     val lines = ssc.socketTextStream("localhost", 9999)
 //    val lines = ssc.textFileStream("file:///home/omar/stream/train")
@@ -58,7 +58,9 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
     if(batchCompleted.batchInfo.numRecords > 0) {
       print("FakeKMeans ")
-      val clusters = timer{clustream.fakeKMeans(sc,1000)}
+      val clusters = timer{clustream.fakeKMeans(sc,1000,clustream.model.getMicroClusters())}
+      println("save snapshots")
+      timer{clustream.saveSnapShotsToDisk("snaps",2,2)}
       if(clusters != null) {
         println("MacroClusters Ceneters")
         clusters.clusterCenters.foreach(println)

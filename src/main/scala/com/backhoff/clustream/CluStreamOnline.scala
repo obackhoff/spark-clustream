@@ -9,7 +9,8 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.annotation.{DeveloperApi, Experimental, Since}
+import org.apache.spark.annotation.Experimental
+import org.apache.spark.mllib.clustering.KMeans
 
 
 @Experimental
@@ -27,9 +28,9 @@ class CluStreamOnline(
     result
   }
 
-  private val mLastPoints: Double = 300.0
-  private val delta = 4
-  private val tFactor = 2
+  private var mLastPoints = 500
+  private var delta = 20
+  private var tFactor = 2.0
 
   private var time: Long = 0L
   private var N: Long = 0L
@@ -71,9 +72,8 @@ class CluStreamOnline(
     initArr = initArr ++ rdd.collect
     if (initArr.length >= minInitPoints) {
 
-      import org.apache.spark.mllib.clustering.KMeans
       val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
-      val clusters = KMeans.train(trainingSet, q, 10)
+      val clusters = KMeans.train(trainingSet, q, 5)
       trainingSet.unpersist(blocking = false)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
@@ -158,14 +158,26 @@ class CluStreamOnline(
     }
   }
 
-  def getMicroClusters(): Array[MicroCluster] = {
+  def getMicroClusters: Array[MicroCluster] = {
     this.microClusters
   }
 
-  def getCurrentTime(): Long = {
+  def getCurrentTime: Long = {
     this.time
   }
 
+  def setM(m: Int) : this.type = {
+    this.mLastPoints = m
+    this
+  }
+  def setDelta(d: Int) : this.type = {
+    this.delta = d
+    this
+  }
+  def setTFactor(t: Double): this.type = {
+    this.tFactor = t
+    this
+  }
   private def distanceNearestMC(vec: breeze.linalg.Vector[Double], mcs: Array[(MicroClusterInfo, Int)]): Double = {
 
     var minDist = Double.PositiveInfinity
