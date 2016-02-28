@@ -15,12 +15,10 @@ import org.apache.spark.mllib.clustering.KMeans
 
 @Experimental
 class CluStream (
-                  var k: Int,
-                  var h: Int,
                   val model:CluStreamOnline)
   extends Logging with Serializable{
 
-  def this() = this(2,100,null)
+  def this() = this(null)
 
   private def sample[A](dist: Map[A, Double]): A = {
     val p = scala.util.Random.nextDouble
@@ -146,7 +144,7 @@ class CluStream (
   }
 
 
-  def fakeKMeans(sc: SparkContext, numPoints: Int, mcs: Array[MicroCluster]): org.apache.spark.mllib.clustering.KMeansModel ={
+  def fakeKMeans(sc: SparkContext,k: Int, numPoints: Int, mcs: Array[MicroCluster]): org.apache.spark.mllib.clustering.KMeansModel ={
     //if(model.initialized) {
       val kmeans = new KMeans()
       var centers = getCentersFromMC(mcs).map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))
@@ -170,14 +168,5 @@ class CluStream (
     model.run(data)
   }
 
-  def setK(k: Int): this.type = {
-    this.k = k
-    this
-  }
-
-  def setH(h: Int): this.type = {
-    this.h = h
-    this
-  }
 
 }

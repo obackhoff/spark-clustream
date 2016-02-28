@@ -73,7 +73,7 @@ class CluStreamOnline(
     if (initArr.length >= minInitPoints) {
 
       val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
-      val clusters = KMeans.train(trainingSet, q, 5)
+      val clusters = KMeans.train(trainingSet, q, 10)
       trainingSet.unpersist(blocking = false)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
@@ -105,6 +105,7 @@ class CluStreamOnline(
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit = {
     data.foreachRDD { (rdd, time) =>
       this.time += 1
+      rdd.cache()
       this.N += rdd.count()
       if (!rdd.isEmpty()) {
 
@@ -129,7 +130,7 @@ class CluStreamOnline(
 
           //PRINT STUFF FOR DEBUGING
 
-          microClusters.foreach { mc =>
+          //microClusters.foreach { mc =>
             //            println("IDs " + mc.getIds.mkString(" "))
             //            println("CF1X: " + mc.getCf1x.toString)
             //            println("CF2X: " + mc.getCf2x.toString)
@@ -137,7 +138,7 @@ class CluStreamOnline(
             //            println("CF2T: " + mc.getCf2t.toString)
             //            println("N: " + mc.getN.toString)
             //            println()
-          }
+          //}
 //          println("Centers: ")
 //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
           //          println("RMSD: ")
@@ -164,6 +165,10 @@ class CluStreamOnline(
 
   def getCurrentTime: Long = {
     this.time
+  }
+
+  def getTotalPoints: Long = {
+    this.N
   }
 
   def setM(m: Int) : this.type = {
@@ -331,7 +336,7 @@ class CluStreamOnline(
           val meanTimeStamp = if (mc.getN > 0) mc.getCf1t.toDouble / mc.getN.toDouble else 0
           val sdTimeStamp = scala.math.sqrt(mc.getCf2t.toDouble / mc.getN.toDouble - meanTimeStamp * meanTimeStamp)
 
-          if (mc.getN < tFactor * mLastPoints) mTimeStamp = meanTimeStamp
+          if (mc.getN < 2 * mLastPoints) mTimeStamp = meanTimeStamp
           else mTimeStamp = breeze.stats.distributions.Gaussian(meanTimeStamp, sdTimeStamp).icdf(1 - mLastPoints / (2 * mc.getN.toDouble))
 
           if (mTimeStamp < recencyThreshhold) safeDeleteMC = safeDeleteMC :+ i
