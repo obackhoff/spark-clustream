@@ -12,6 +12,13 @@ import java.io._
 import java.nio.file.{Paths, Files}
 import org.apache.spark.mllib.clustering.KMeans
 
+/**
+  * Class that contains the offline methods for the CluStream
+  * method. It can be initialized with a CluStreamOnline model to
+  * facilitate the use of it at the same time the online process
+  * is running.
+  *
+  **/
 
 @Experimental
 class CluStream (
@@ -19,6 +26,16 @@ class CluStream (
   extends Logging with Serializable{
 
   def this() = this(null)
+
+  /**
+    * Method that samples values from a given distribution.
+    *
+    * @param dist: this is a map containing values and their weights in
+    *            the distributions. Weights must add to 1.
+    *            Example. {A -> 0.5, B -> 0.3, C -> 0.2 }
+    *
+    * @return A: sample value A
+    **/
 
   private def sample[A](dist: Map[A, Double]): A = {
     val p = scala.util.Random.nextDouble
@@ -32,6 +49,19 @@ class CluStream (
     }
     sys.error(f"this should never happen") // needed so it will compile
   }
+
+  /**
+    * Method that saves a snapshot to disk using the pyramidal time
+    * scheme to a given directory.
+    *
+    * @param dir: directory to save the snapshot
+
+    * @param tc: time clock unit to save
+    *
+    * @param alpha: alpha parameter of the pyramidal time scheme
+    *
+    * @param l: l modifier of the pyramidal time scheme
+    **/
 
   def saveSnapShotsToDisk(dir: String = "", tc: Long, alpha: Int = 2, l: Int = 2): Unit ={
 
@@ -76,6 +106,19 @@ class CluStream (
     }
   }
 
+  /**
+    * Method that gets the snapshots to use for a given time and horizon in a
+    * given file directory.
+    *
+    * @param dir: directory to save the snapshot
+
+    * @param tc: time clock unit to save
+    *
+    * @param h: time horizon
+    *
+    * @return (Long,Long): tuple of the first and second snapshots to use.
+    **/
+
   def getSnapShots(dir: String = "", tc: Long, h: Long): (Long,Long) = {
 
     var tcReal = tc
@@ -87,6 +130,19 @@ class CluStream (
     if(tcReal == -1L) tcH = -1L
     (tcReal, tcH)
   }
+
+  /**
+    * Method that returns the microclusters from the snapshots for a given time and horizon in a
+    * given file directory. Subtracts the features of the first one with the second one.
+    *
+    * @param dir: directory to save the snapshot
+
+    * @param tc: time clock unit to save
+    *
+    * @param h: time horizon
+    *
+    * @return Array[MicroCluster]: computed array of microclusters
+    **/
 
   def getMCsFromSnapshots(dir: String = "", tc: Long, h: Long): Array[MicroCluster] = {
     val (t1,t2) = getSnapShots(dir,tc,h)
@@ -125,6 +181,13 @@ class CluStream (
     }
   }
 
+  /**
+    * Method that returns the centrois of the microclusters.
+    *
+    * @param mcs: array of microclusters
+    *
+    * @return Array[Vector]: computed array of centroids
+    **/
 
   def getCentersFromMC(mcs: Array[MicroCluster]): Array[Vector[Double]] = {
     var arr: Array[Vector[Double]] = Array()
@@ -135,6 +198,14 @@ class CluStream (
     arr
   }
 
+  /**
+    * Method that returns the weights of the microclusters from the number of points.
+    *
+    * @param mcs: array of microclusters
+    *
+    * @return Array[Double]: computed array of weights
+    **/
+
   def getWeightsFromMC(mcs: Array[MicroCluster]): Array[Double] = {
     var arr: Array[Double] = Array()
     for(mc <- mcs)
@@ -143,9 +214,22 @@ class CluStream (
     arr.map(value => value/sum)
   }
 
+  /**
+    * Method that returns a computed KMeansModel. It runs a modified version
+    * of the KMeans algorithm in Spark from sampling the microclusters given
+    * its weights.
+    *
+    * @param sc: spark context where KMeans will run
+    *
+    * @param k: number of clusters
+    *
+    * @param mcs: array of microclusters
+    *
+    * @return org.apache.spark.mllib.clustering.KMeansModel: computed KMeansModel
+    **/
 
   def fakeKMeans(sc: SparkContext,k: Int, numPoints: Int, mcs: Array[MicroCluster]): org.apache.spark.mllib.clustering.KMeansModel ={
-    //if(model.initialized) {
+
       val kmeans = new KMeans()
       var centers = getCentersFromMC(mcs).map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))
       val weights = getWeightsFromMC(mcs)
@@ -160,9 +244,15 @@ class CluStream (
       val clusters = kmeans.run(trainingSet)
       trainingSet.unpersist(blocking = false)
       clusters
-    //}else null
 
   }
+
+  /**
+    * Method that allows to run the online process from this class.
+    *
+    * @param data: data that comes from the stream
+    *
+    **/
 
   def startOnline(data: DStream[breeze.linalg.Vector[Double]]): Unit ={
     model.run(data)
