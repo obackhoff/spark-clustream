@@ -33,8 +33,8 @@ class CluStream (
     sys.error(f"this should never happen") // needed so it will compile
   }
 
-  def saveSnapShotsToDisk(dir: String = "", alpha: Int = 2, l: Int = 2): Unit ={
-    val tc = model.getCurrentTime
+  def saveSnapShotsToDisk(dir: String = "", tc: Long, alpha: Int = 2, l: Int = 2): Unit ={
+
     var write = false
     var delete = false
     var order = 0

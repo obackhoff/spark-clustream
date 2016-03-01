@@ -57,26 +57,29 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
   }
 
   override def onBatchCompleted(batchCompleted: StreamingListenerBatchCompleted) {
+    val tc = clustream.model.getCurrentTime
+    val n = clustream.model.getTotalPoints
+
     if (batchCompleted.batchInfo.numRecords > 0) {
-      val tc = clustream.model.getCurrentTime
-      val n = clustream.model.getTotalPoints
+
       println("save snapshots")
       timer {
-        clustream.saveSnapShotsToDisk("snaps", 2, 10)
+        clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
       }
       println("total N so Far " + n + " at time " + tc )
 
-      if (Array(5, 20, 80, 160).contains(tc)) {
-        print("FakeKMeans for " + tc)
-        val clusters = timer {
-          println("snapshots " + clustream.getSnapShots("snaps",tc,1))
-          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
-        }
-        if (clusters != null) {
-          println("MacroClusters Ceneters")
-          clusters.clusterCenters.foreach(println)
-        }
-      }
+//      if (Array(750,1250,1750,2250).contains(tc)) {
+//        print("FakeKMeans for " + tc)
+//        val clusters = timer {
+//          println("snapshots " + clustream.getSnapShots("snaps",tc,256))
+//          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 256))
+//        }
+//        if (clusters != null) {
+//          println("MacroClusters Centers")
+//          clusters.clusterCenters.foreach(println)
+//        }
+//      }
+
     }
   }
 }

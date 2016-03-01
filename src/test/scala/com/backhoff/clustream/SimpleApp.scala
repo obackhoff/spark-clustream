@@ -25,34 +25,40 @@ object SimpleApp {
 //    val numBs = logData.filter(line => line.contains("b")).count()
 //    println("Lines with a: %s, Lines with b: %s".format(numAs, numBs))
 
+    val h = 1
+    val t1 = 6
+    val t2 = 21
+    val t3 = 81
+    val t4 = 160
+
     val clustream = new CluStream(null)
-    val snap1 = timer{clustream.getMCsFromSnapshots("snaps",7,1)}
-    val snap2 = timer{clustream.getMCsFromSnapshots("snaps",23,1)}
-    val snap3 = timer{clustream.getMCsFromSnapshots("snaps",85,1)}
-    val snap4 = timer{clustream.getMCsFromSnapshots("snaps",168,1)}
+    val snap1 = timer{clustream.getMCsFromSnapshots("snaps",t1,h)}
+    val snap2 = timer{clustream.getMCsFromSnapshots("snaps",t2,h)}
+    val snap3 = timer{clustream.getMCsFromSnapshots("snaps",t3,h)}
+    val snap4 = timer{clustream.getMCsFromSnapshots("snaps",t4,h)}
 
     val clus = timer{clustream.fakeKMeans(sc,5,5000,snap1)}
     if(clus != null) {
       println("MacroClusters Ceneters")
-      println("snapshots " + clustream.getSnapShots("snaps",7,1))
+      println("snapshots " + clustream.getSnapShots("snaps",t1,h))
       clus.clusterCenters.foreach(println)
     }
     val clusters2 = timer{clustream.fakeKMeans(sc,5,5000,snap2)}
     if(clusters2 != null) {
       println("MacroClusters Ceneters")
-      println("snapshots " + clustream.getSnapShots("snaps",23,1))
+      println("snapshots " + clustream.getSnapShots("snaps",t2,h))
       clusters2.clusterCenters.foreach(println)
     }
     val clusters3 = timer{clustream.fakeKMeans(sc,5,5000,snap3)}
     if(clusters3 != null) {
       println("MacroClusters Ceneters")
-      println("snapshots " + clustream.getSnapShots("snaps",85,1))
+      println("snapshots " + clustream.getSnapShots("snaps",t3,h))
       clusters3.clusterCenters.foreach(println)
     }
     val clusters4 = timer{clustream.fakeKMeans(sc,5,5000,snap4)}
     if(clusters4 != null) {
       println("MacroClusters Ceneters")
-      println("snapshots " + clustream.getSnapShots("snaps",168,1))
+      println("snapshots " + clustream.getSnapShots("snaps",t4,h))
       clusters4.clusterCenters.foreach(println)
     }
    // val clu = new CluStream().setK(23).setH(100)
