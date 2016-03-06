@@ -17,7 +17,7 @@ object StreamingKMeans {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
     val sc = new SparkContext(conf)
     //sc.setLogLevel("ERROR")
-    val ssc = new StreamingContext(sc, Milliseconds(20000))
+    val ssc = new StreamingContext(sc, Milliseconds(1000))
 //    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
 //    val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
     val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(_.mkString("[",",","]")).map(Vectors.parse)

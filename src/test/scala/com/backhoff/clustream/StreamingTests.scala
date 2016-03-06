@@ -33,7 +33,7 @@ object StreamingTests {
     //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20)
+    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20).setRecursiveOutliersAssignation(true)
     val clustream = new CluStream(model)
     ssc.addStreamingListener(new PrintClustersListener(clustream, sc))
     //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -62,10 +62,8 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
 
     if (batchCompleted.batchInfo.numRecords > 0) {
 
-      println("save snapshots")
-      timer {
-        clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
-      }
+      clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
+
       println("total N so Far " + n + " at time " + tc )
 
 //      if (Array(750,1250,1750,2250).contains(tc)) {
