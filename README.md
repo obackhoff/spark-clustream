@@ -1,4 +1,6 @@
 # Spark-CluStream
+By Omar Backhoff Larrazolo
+
 
 Adaptation of the CluStream method to Spark
 
