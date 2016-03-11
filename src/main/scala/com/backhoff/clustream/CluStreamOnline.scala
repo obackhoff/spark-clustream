@@ -53,7 +53,7 @@ class CluStreamOnline(
   private var mLastPoints = 500
   private var delta = 20
   private var tFactor = 2.0
-  private var recursiveOutliersAssignation = true
+  private var recursiveOutliersRMSDCheck = true
 
   private var time: Long = 0L
   private var N: Long = 0L
@@ -246,8 +246,8 @@ class CluStreamOnline(
     * @return Class: current class
     **/
 
-  def setRecursiveOutliersAssignation(ans: Boolean): this.type = {
-    this.recursiveOutliersAssignation = ans
+  def setRecursiveOutliersRMSDCheck(ans: Boolean): this.type = {
+    this.recursiveOutliersRMSDCheck = ans
     this
   }
 
@@ -566,7 +566,7 @@ class CluStreamOnline(
 
           var minDist = Double.PositiveInfinity
           var idMinDist = 0
-          if (recursiveOutliersAssignation) for (id <- newMC) {
+          if (recursiveOutliersRMSDCheck) for (id <- newMC) {
             val dist = squaredDistPointToMCArrIdx(id, point._2)
             if (dist < minDist) {
               minDist = dist
@@ -575,7 +575,7 @@ class CluStreamOnline(
           }
 
           var rmsd = 0.0
-          if (recursiveOutliersAssignation) {
+          if (recursiveOutliersRMSDCheck) {
             if (microClusters(idMinDist).getN > 1)
               rmsd = scala.math.sqrt(sum(microClusters(idMinDist).cf2x) / microClusters(idMinDist).n - sum(microClusters(idMinDist).cf1x.map(a => a * a)) / (microClusters(idMinDist).n * microClusters(idMinDist).n))
             else rmsd = distanceNearestMC(mcInfo(idMinDist)._1.centroid, broadcastMCInfo.value)

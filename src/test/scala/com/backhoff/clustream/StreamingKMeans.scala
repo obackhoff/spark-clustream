@@ -4,6 +4,7 @@ package com.backhoff.clustream
  * Created by omar on 9/18/15.
  */
 
+import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.scheduler.{StreamingListenerBatchCompleted, StreamingListener}
 import org.apache.spark.streaming.{Milliseconds, StreamingContext}
 import org.apache.spark.{SparkContext, SparkConf}
@@ -16,7 +17,7 @@ object StreamingKMeans {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("Streaming K-means test").setMaster("local[*]")
     val sc = new SparkContext(conf)
-    //sc.setLogLevel("ERROR")
+    sc.setLogLevel("ERROR")
     val ssc = new StreamingContext(sc, Milliseconds(1000))
 //    val trainingData = ssc.textFileStream("file:///home/omar/stream/train").map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[", ",", "]")).map(Vectors.parse)
 //    val trainingData = ssc.socketTextStream("localhost",9999).map(_.split(" ")).map(arr => arr.dropRight(1)).map(_.mkString("[",",","]")).map(Vectors.parse)
@@ -27,14 +28,13 @@ object StreamingKMeans {
     val numClusters = 5
     val model = new StreamingKMeans()
       .setK(numClusters)
-      .setDecayFactor(0)
+      //.setHalfLife(1000, "points")
+      .setDecayFactor(0.0)
       .setRandomCenters(numDimensions, 0.0)
 
-    //val oldCenters = new StaticVar(Array.fill(numClusters)(Array.fill(numDimensions)(0.0)))
-    val oldCenters = new StaticVar(Array.fill(numDimensions)(Vectors.dense(Array.fill(numDimensions)(0.0))))
-//    val listener = new MyListener(model.latestModel().clusterCenters, oldCenters)
-//
-//    ssc.addStreamingListener(listener)
+    val N = new StaticVar[Long](0L)
+    val listener = new MyListener(model, N)
+    ssc.addStreamingListener(listener)
 
     model.trainOn(trainingData)
     //model.predictOnValues(testData.map(lp => (lp.label, lp.features))).print()
@@ -44,14 +44,13 @@ object StreamingKMeans {
   }
 }
 
-private[clustream] class MyListener(centers:Array[Vector], oldCenters:StaticVar[Array[Vector]]) extends StreamingListener {
+private[clustream] class MyListener(model: StreamingKMeans, n: StaticVar[Long]) extends StreamingListener {
   override def onBatchCompleted(batchCompleted:StreamingListenerBatchCompleted) {
-    if ( !(centers sameElements oldCenters.value) ) {
-      println("================= CENTERS =================")
-      centers.foreach(println)
-      for(i <- centers.indices)
-          oldCenters.value(i) = centers(i).copy
+    if ( batchCompleted.batchInfo.numRecords > 0) {
+      n.value = n.value + batchCompleted.batchInfo.numRecords
+      println("================= CENTERS ================= N = " + n.value)
+      model.latestModel().clusterCenters.foreach(println)
     }
   }
 }
-class StaticVar[T]( val value: T )
+class StaticVar[T]( var value: T )
