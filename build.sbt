@@ -1,6 +1,6 @@
-name := "Spark-CluStream"
+name := "spark-clustream"
 
-spName := "obackhoff/Spark-CluStream"
+spName := "obackhoff/spark-clustream"
 
 version := "0.1"
 
