@@ -479,7 +479,7 @@ class CluStreamOnline(
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
-    println("calc info")
+    println("Process points")
     //    val pointCount = timer {
     //      dataIn.countByKey()
     //    }
@@ -535,7 +535,7 @@ class CluStreamOnline(
     }
 
 
-    println("Deal with outliers")
+    println("Process outliers")
     timer {
       if (dataOut != null) {
         var mTimeStamp: Double = 0.0
@@ -600,7 +600,6 @@ class CluStreamOnline(
                   idx2 = keepOrMergeMC(b)
                 }
               }
-            println("closest microclusters to each other " + idx1 + ", " + idx2)
             mergeMicroClusters(idx1, idx2)
             replaceMicroCluster(idx2, point._2)
             newMC = newMC :+ idx2

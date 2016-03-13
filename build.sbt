@@ -1,13 +1,13 @@
 name := "Spark-CluStream"
 
-version := "1.0"
+spName := "obackhoff/Spark-CluStream"
 
-scalaVersion := "2.10.4"
+version := "0.1"
 
-libraryDependencies += "org.apache.spark" %% "spark-core" % "1.5.2"
+scalaVersion := "2.10.5"
 
-libraryDependencies += "org.apache.spark" %% "spark-streaming" % "1.5.2"
+sparkVersion := "1.5.2"
 
-libraryDependencies += "org.apache.spark" %% "spark-mllib" % "1.5.2"
+sparkComponents ++= Seq("streaming", "mllib")
 
 libraryDependencies += "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly()
