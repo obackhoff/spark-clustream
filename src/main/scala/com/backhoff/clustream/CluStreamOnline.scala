@@ -151,8 +151,9 @@ class CluStreamOnline(
     data.foreachRDD { (rdd, time) =>
       this.time += 1
       //rdd.cache()
-      this.N += rdd.count()
-      if (!rdd.isEmpty()) {
+      val currentN = rdd.count()
+      this.N += currentN
+      if (currentN != 0) {
 
         if (initialized) {
 
