@@ -57,6 +57,7 @@ class CluStreamOnline(
 
   private var time: Long = 0L
   private var N: Long = 0L
+  private var currentN: Long = 0L
 
   private var microClusters: Array[MicroCluster] = null
   private var mcInfo: Array[(MicroClusterInfo, Int)] = null
@@ -151,7 +152,7 @@ class CluStreamOnline(
     data.foreachRDD { (rdd, time) =>
       this.time += 1
       //rdd.cache()
-      val currentN = rdd.count()
+      currentN = rdd.count()
       this.N += currentN
       if (currentN != 0) {
 
@@ -525,6 +526,7 @@ class CluStreamOnline(
     //      }
     //    }
 
+    var totalIn = 0L
     for (mc <- microClusters) {
       for (ss <- sumsAndSumsSquares) if (mc.getIds(0) == ss._1) {
         mc.setCf1x(mc.cf1x :+ ss._2._1)
@@ -532,13 +534,14 @@ class CluStreamOnline(
         mc.setN(mc.n + ss._2._3)
         mc.setCf1t(mc.cf1t + ss._2._3 * this.time)
         mc.setCf2t(mc.cf2t + ss._2._3 * (this.time * this.time))
+        totalIn += ss._2._3
       }
     }
 
 
     println("Process outliers")
     timer {
-      if (dataOut != null) {
+      if (dataOut != null && currentN - totalIn != 0) {
         var mTimeStamp: Double = 0.0
         val recencyThreshold = this.time - delta
         var safeDeleteMC: Array[Int] = Array()
