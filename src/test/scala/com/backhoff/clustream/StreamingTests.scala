@@ -67,15 +67,15 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
       println("total N so Far " + n + " at time " + tc )
 
 //      if (Array(750,1250,1750,2250).contains(tc)) {
-        print("FakeKMeans for " + tc)
-        val clusters = timer {
-          println("snapshots " + clustream.getSnapShots("snaps",tc,1))
-          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
-        }
-        if (clusters != null) {
-          println("MacroClusters Centers")
-          clusters.clusterCenters.foreach(println)
-        }
+//        print("FakeKMeans for " + tc)
+//        val clusters = timer {
+//          println("snapshots " + clustream.getSnapShots("snaps",tc,1))
+//          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
+//        }
+//        if (clusters != null) {
+//          println("MacroClusters Centers")
+//          clusters.clusterCenters.foreach(println)
+//        }
 //      }
 
     }

@@ -33,11 +33,11 @@ class Clus extends Task {
     val writer:StreamWriter = this.resultsWriterOption.getValue()
     val evaluator:Evaluator = this.evaluatorOption.getValue()
 
-    //clusterer.microclusters.horizonOption.setValue(1)
+    clusterer.microclusters.horizonOption.setValue(1)
     clusterer.initOption.setValue(2000)
     clusterer.kOption.setValue(5)
     clusterer.mcOption.setValue(50)
-    clusterer.repOption.setValue(10)
+    //clusterer.repOption.setValue(10)
 
     //Parse stream and get Examples
     val N = new StaticVar[Long](0L)
@@ -50,10 +50,10 @@ class Clus extends Task {
     //Train
     clusterer.train(instances)
     //Assign
-    val clpairs = clusterer.assign(instances)
+    //val clpairs = clusterer.assign(instances)
 
     //Print statistics
-    writer.output(evaluator.addResult(clpairs))
+   // writer.output(evaluator.addResult(clpairs))
   }
 }
 

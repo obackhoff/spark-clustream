@@ -25,11 +25,11 @@ object SimpleApp {
 //    val numBs = logData.filter(line => line.contains("b")).count()
 //    println("Lines with a: %s, Lines with b: %s".format(numAs, numBs))
 
-    val h = 256
-    val t1 = 759
-    val t2 = 1261
-    val t3 = 1761
-    val t4 = 2268
+    val h = 3
+    val t1 = 10
+    val t2 = 30
+    val t3 = 70
+    val t4 = 150
 
     val clustream = new CluStream(null)
     val snap1 = timer{clustream.getMCsFromSnapshots("snaps",t1,h)}

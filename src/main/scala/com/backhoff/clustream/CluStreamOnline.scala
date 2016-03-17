@@ -472,10 +472,10 @@ class CluStreamOnline(
 
     // Separate data
     if (dataInAndOut != null) {
-      dataIn = dataInAndOut.filter(_._1 == 1).map(a => a._2).cache()
-      dataOut = dataInAndOut.filter(_._1 == 0).map(a => a._2).cache()
-      dataInAndOut.unpersist(blocking = false)
-      assignations.unpersist(blocking = false)
+      dataIn = dataInAndOut.filter(_._1 == 1).map(a => a._2)
+      dataOut = dataInAndOut.filter(_._1 == 0).map(a => a._2)
+      //dataInAndOut.unpersist(blocking = false)
+      //assignations.unpersist(blocking = false)
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
@@ -608,8 +608,8 @@ class CluStreamOnline(
         }
 
       }
-      dataIn.unpersist(blocking = false)
-
+      //dataIn.unpersist(blocking = false)
+      //dataOut.unpersist(blocking = false)
     }
   }
 

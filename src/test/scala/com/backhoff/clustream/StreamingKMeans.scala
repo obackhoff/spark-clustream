@@ -28,8 +28,8 @@ object StreamingKMeans {
     val numClusters = 5
     val model = new StreamingKMeans()
       .setK(numClusters)
-      //.setHalfLife(1000, "points")
-      .setDecayFactor(0.0)
+      .setHalfLife(1000, "points")
+      //.setDecayFactor(0.0)
       .setRandomCenters(numDimensions, 0.0)
 
     val N = new StaticVar[Long](0L)
