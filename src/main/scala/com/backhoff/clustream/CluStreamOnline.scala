@@ -59,7 +59,7 @@ class CluStreamOnline(
   private var N: Long = 0L
   private var currentN: Long = 0L
 
-  private var microClusters: Array[MicroCluster] = null
+  private var microClusters: Array[MicroCluster] = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0.0), Vector.fill[Double](numDimensions)(0.0), 0L, 0L, 0L))
   private var mcInfo: Array[(MicroClusterInfo, Int)] = null
 
   private var broadcastQ: Broadcast[Int] = null
@@ -77,7 +77,6 @@ class CluStreamOnline(
     **/
 
   private def initRand(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
-    microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0.0), Vector.fill[Double](numDimensions)(0.0), 0L, 0L, 0L))
     mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(rand()), 0.0, 0L)) zip (0 until q)
 
     val assignations = assignToMicroCluster(rdd, q, mcInfo)
@@ -90,7 +89,6 @@ class CluStreamOnline(
       if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
       else {
         mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
-        //        println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
       }
       i += 1
     }
@@ -112,15 +110,12 @@ class CluStreamOnline(
 
       val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
       val clusters = KMeans.train(trainingSet, q, 10)
-      trainingSet.unpersist(blocking = false)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
 
-      microClusters = Array.fill(q)(new MicroCluster(Vector.fill[Double](numDimensions)(0), Vector.fill[Double](numDimensions)(0), 0L, 0L, 0L))
       val tempRDD = rdd.context.parallelize(initArr)
       val assignations = assignToMicroCluster(tempRDD, q, mcInfo)
-      tempRDD.unpersist(blocking = false)
       updateMicroClusters(assignations)
 
       var i = 0
@@ -149,9 +144,8 @@ class CluStreamOnline(
     **/
 
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit = {
-    data.foreachRDD { (rdd, time) =>
+    data.foreachRDD { (rdd, timeS) =>
       this.time += 1
-      //rdd.cache()
       currentN = rdd.count()
       this.N += currentN
       if (currentN != 0) {
@@ -168,32 +162,11 @@ class CluStreamOnline(
             if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
             else {
               mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
-              //            println("YEAH, 1-SIZE MC, rmsd = " + mcInfo(i)._1.rmsd)
             }
             i += 1
           }
 
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
-
-          //PRINT STUFF FOR DEBUGING
-
-          //microClusters.foreach { mc =>
-          //            println("IDs " + mc.getIds.mkString(" "))
-          //            println("CF1X: " + mc.getCf1x.toString)
-          //            println("CF2X: " + mc.getCf2x.toString)
-          //            println("CF1T: " + mc.getCf1t.toString)
-          //            println("CF2T: " + mc.getCf2t.toString)
-          //            println("N: " + mc.getN.toString)
-          //            println()
-          //}
-          //          println("Centers: ")
-          //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.centroid))
-          //          println("RMSD: ")
-          //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.rmsd))
-          //          println("Total time units elapsed: " + this.time)
-          //          println("Total number of points: " + N)
-          //          println("N alternativo: ")
-          //          broadcastMCInfo.value.foreach(a => println("Cluster " + a._2 + "=" + a._1.n))
 
         } else {
           minInitPoints match {
@@ -428,12 +401,10 @@ class CluStreamOnline(
 
   private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
     rdd.map { a =>
-      //val arr = Array.fill[(Int, Double)](q)(0, 0)
       var minDist = Double.PositiveInfinity
       var minIndex = Int.MaxValue
       var i = 0
       for (mc <- mcInfo) {
-        //arr(i) = (mc._2, squaredDistance(a, mc._1.centroid))
         val dist = squaredDistance(a, mc._1.centroid)
         if (dist < minDist) {
           minDist = dist
@@ -460,7 +431,6 @@ class CluStreamOnline(
     var dataIn: RDD[(Int, Vector[Double])] = null
     var dataOut: RDD[(Int, Vector[Double])] = null
 
-    // cache() plays an important role on performance :)
     // Calculate RMSD
     if (initialized) {
       dataInAndOut = assignations.map { a =>
@@ -476,15 +446,10 @@ class CluStreamOnline(
     if (dataInAndOut != null) {
       dataIn = dataInAndOut.filter(_._1 == 1).map(a => a._2)
       dataOut = dataInAndOut.filter(_._1 == 0).map(a => a._2)
-      //dataInAndOut.unpersist(blocking = false)
-      //assignations.unpersist(blocking = false)
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
-    println("Process points")
-    //    val pointCount = timer {
-    //      dataIn.countByKey()
-    //    }
+    println("Processing points")
 
     // sumsAndSumsSquares -> (key: Int, (sum: Vector[Double], sumSquares: Vector[Double], count: Long ) )
     val sumsAndSumsSquares = timer {
@@ -492,39 +457,6 @@ class CluStreamOnline(
       dataIn.mapValues(a => (a, a :* a, 1L)).reduceByKey(aggregateFuntion).collect()
     }
 
-    //    val sums = timer {
-    //      dataIn.reduceByKey(_ :+ _).collect()
-    //    }
-    //    val sumsSquares = timer {
-    //      dataIn.mapValues(a => a :* a).reduceByKey(_ :+ _).collect()
-    //    }
-
-
-    //    timer {
-    //      for (mc <- microClusters) {
-    //        for (s <- sums) if (mc.getIds(0) == s._1) mc.setCf1x(mc.cf1x :+ s._2)
-    //        for (ss <- sumsSquares) if (mc.getIds(0) == ss._1) mc.setCf2x(mc.cf2x :+ ss._2)
-    //        for (pc <- pointCount) if (mc.getIds(0) == pc._1) {
-    //          mc.setN(mc.n + pc._2)
-    //          mc.setCf1t(mc.cf1t + pc._2 * this.time)
-    //          mc.setCf2t(mc.cf2t + pc._2 * (this.time * this.time))
-    //        }
-    //      }
-    //    }
-
-    //    timer {
-    //      for (mc <- microClusters) {
-    //        for (ss <- sumsAndSumsSquares) if (mc.getIds(0) == ss._1){
-    //          mc.setCf1x(mc.cf1x :+ ss._2._1)
-    //          mc.setCf2x(mc.cf2x :+ ss._2._2)
-    //        }
-    //        for (pc <- pointCount) if (mc.getIds(0) == pc._1) {
-    //          mc.setN(mc.n + pc._2)
-    //          mc.setCf1t(mc.cf1t + pc._2 * this.time)
-    //          mc.setCf2t(mc.cf2t + pc._2 * (this.time * this.time))
-    //        }
-    //      }
-    //    }
 
     var totalIn = 0L
     for (mc <- microClusters) {
@@ -539,7 +471,7 @@ class CluStreamOnline(
     }
 
 
-    println("Process outliers")
+    println("Processing " + (currentN - totalIn) + " outliers")
     timer {
       if (dataOut != null && currentN - totalIn != 0) {
         var mTimeStamp: Double = 0.0
@@ -576,15 +508,10 @@ class CluStreamOnline(
               minDist = dist
               idMinDist = id
             }
+
           }
 
-          var rmsd = 0.0
-          if (recursiveOutliersRMSDCheck) {
-            if (microClusters(idMinDist).getN > 1)
-              rmsd = scala.math.sqrt(sum(microClusters(idMinDist).cf2x) / microClusters(idMinDist).n - sum(microClusters(idMinDist).cf1x.map(a => a * a)) / (microClusters(idMinDist).n * microClusters(idMinDist).n))
-            else rmsd = distanceNearestMC(mcInfo(idMinDist)._1.centroid, broadcastMCInfo.value)
-          }
-          if (minDist <= tFactor * rmsd) addPointMicroClusters(idMinDist, point._2)
+          if (scala.math.sqrt(minDist) <= tFactor * mcInfo(idMinDist)._1.rmsd) addPointMicroClusters(idMinDist, point._2)
           else if (safeDeleteMC.lift(j).isDefined) {
             replaceMicroCluster(safeDeleteMC(j), point._2)
             newMC = newMC :+ safeDeleteMC(j)
@@ -597,7 +524,7 @@ class CluStreamOnline(
             for (a <- keepOrMergeMC.indices)
               for (b <- (0 + a) until keepOrMergeMC.length) {
                 var dist = Double.PositiveInfinity
-                if (keepOrMergeMC(a) != keepOrMergeMC(b)) dist = squaredDistTwoMCArrIdx(keepOrMergeMC(a), keepOrMergeMC(b))
+                if (keepOrMergeMC(a) != keepOrMergeMC(b)) dist = squaredDistance(mcInfo(keepOrMergeMC(a))._1.centroid, mcInfo(keepOrMergeMC(b))._1.centroid)
                 if (dist < minDist) {
                   minDist = dist
                   idx1 = keepOrMergeMC(a)
@@ -612,8 +539,6 @@ class CluStreamOnline(
         }
 
       }
-      //dataIn.unpersist(blocking = false)
-      //dataOut.unpersist(blocking = false)
     }
   }
 

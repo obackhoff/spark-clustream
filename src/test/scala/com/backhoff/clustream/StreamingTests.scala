@@ -33,7 +33,7 @@ object StreamingTests {
     //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(100).setRecursiveOutliersRMSDCheck(true)
+    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(1000).setRecursiveOutliersRMSDCheck(true)
     val clustream = new CluStream(model)
     ssc.addStreamingListener(new PrintClustersListener(clustream, sc))
     //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -60,20 +60,19 @@ private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkCo
     val tc = clustream.model.getCurrentTime
     val n = clustream.model.getTotalPoints
 
-    if (batchCompleted.batchInfo.numRecords > 0) {
+    clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
+          println("tc = " + tc + ", n = " + n)
 
-      clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
-
-      println("total N so Far " + n + " at time " + tc )
+    if (batchCompleted.batchInfo.numRecords > 0 ) {
 
 //      if (Array(750,1250,1750,2250).contains(tc)) {
-//        print("FakeKMeans for " + tc)
+//        val snaps = clustream.getSnapShots("snaps",tc,1)
 //        val clusters = timer {
-//          println("snapshots " + clustream.getSnapShots("snaps",tc,1))
 //          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
+//          clustream.fakeKMeans(sc, 5, 2000, clustream.model.getMicroClusters)
 //        }
 //        if (clusters != null) {
-//          println("MacroClusters Centers")
+//          println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
 //          clusters.clusterCenters.foreach(println)
 //        }
 //      }

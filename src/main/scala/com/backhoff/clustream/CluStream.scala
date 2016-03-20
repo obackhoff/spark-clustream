@@ -33,7 +33,6 @@ class CluStream (
     * @param dist: this is a map containing values and their weights in
     *            the distributions. Weights must add to 1.
     *            Example. {A -> 0.5, B -> 0.3, C -> 0.2 }
-    *
     * @return A: sample value A
     **/
 
@@ -57,9 +56,7 @@ class CluStream (
     * @param dir: directory to save the snapshot
 
     * @param tc: time clock unit to save
-    *
     * @param alpha: alpha parameter of the pyramidal time scheme
-    *
     * @param l: l modifier of the pyramidal time scheme
     **/
 
@@ -68,42 +65,44 @@ class CluStream (
     var write = false
     var delete = false
     var order = 0
+    val mcs = model.getMicroClusters
 
-    val exp = (scala.math.log(tc)/scala.math.log(alpha)).toInt
 
-    for(i <- 0 to exp){
-      if(tc % scala.math.pow(alpha, i + 1) != 0 && tc % scala.math.pow(alpha, i) == 0) {
-        order = i
-        write = true
+    val exp = (scala.math.log(tc) / scala.math.log(alpha)).toInt
+
+      for (i <- 0 to exp) {
+        if (tc % scala.math.pow(alpha, i + 1) != 0 && tc % scala.math.pow(alpha, i) == 0) {
+          order = i
+          write = true
+        }
       }
-    }
 
-    val tcBye = tc - ((scala.math.pow(alpha, l) + 1)*scala.math.pow(alpha, order + 1)).toInt
+      val tcBye = tc - ((scala.math.pow(alpha, l) + 1) * scala.math.pow(alpha, order + 1)).toInt
 
-    if(tcBye > 0 ) delete = true
+      if (tcBye > 0) delete = true
 
-    if(write) {
-      val out = new ObjectOutputStream(new FileOutputStream(dir + "/" + tc))
+      if (write) {
+        val out = new ObjectOutputStream(new FileOutputStream(dir + "/" + tc))
 
-      try{
-        out.writeObject(model.getMicroClusters)
+        try {
+          out.writeObject(mcs)
+        }
+        catch {
+          case ex: IOException => println("Exception while writing file " + ex)
+        }
+        finally {
+          out.close()
+        }
       }
-      catch{
-        case ex: IOException => println("Exception while writing file " + ex)
-      }
-      finally{
-        out.close()
-      }
-    }
 
-    if(delete){
-      try{
-        new File(dir + "/" + tcBye).delete()
+      if (delete) {
+        try {
+          new File(dir + "/" + tcBye).delete()
+        }
+        catch {
+          case ex: IOException => println("Exception while deleting file " + ex);
+        }
       }
-      catch{
-        case ex: IOException => println("Exception while deleting file " + ex);
-      }
-    }
   }
 
   /**
@@ -113,9 +112,7 @@ class CluStream (
     * @param dir: directory to save the snapshot
 
     * @param tc: time clock unit to save
-    *
     * @param h: time horizon
-    *
     * @return (Long,Long): tuple of the first and second snapshots to use.
     **/
 
@@ -138,9 +135,7 @@ class CluStream (
     * @param dir: directory to save the snapshot
 
     * @param tc: time clock unit to save
-    *
     * @param h: time horizon
-    *
     * @return Array[MicroCluster]: computed array of microclusters
     **/
 
@@ -179,37 +174,29 @@ class CluStream (
       case ex: IOException => println("Exception while reading files " + ex)
       null
     }
+
   }
 
   /**
     * Method that returns the centrois of the microclusters.
     *
     * @param mcs: array of microclusters
-    *
     * @return Array[Vector]: computed array of centroids
     **/
 
   def getCentersFromMC(mcs: Array[MicroCluster]): Array[Vector[Double]] = {
-    var arr: Array[Vector[Double]] = Array()
-    for(mc <- mcs) {
-      val center: Vector[Double] = mc.getCf1x :/ mc.getN.toDouble
-      arr = arr :+ center
+    mcs.filter(_.getN > 0).map(mc => mc.getCf1x :/ mc.getN.toDouble)
     }
-    arr
-  }
 
   /**
     * Method that returns the weights of the microclusters from the number of points.
     *
     * @param mcs: array of microclusters
-    *
     * @return Array[Double]: computed array of weights
     **/
 
   def getWeightsFromMC(mcs: Array[MicroCluster]): Array[Double] = {
-    var arr: Array[Double] = Array()
-    for(mc <- mcs)
-      arr = arr :+ mc.getN.toDouble
+    var arr: Array[Double] = mcs.map(_.getN.toDouble).filter(_ > 0)
     val sum: Double = arr.sum
     arr.map(value => value/sum)
   }
@@ -220,11 +207,8 @@ class CluStream (
     * its weights.
     *
     * @param sc: spark context where KMeans will run
-    *
     * @param k: number of clusters
-    *
     * @param mcs: array of microclusters
-    *
     * @return org.apache.spark.mllib.clustering.KMeansModel: computed KMeansModel
     **/
 
