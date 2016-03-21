@@ -46,7 +46,7 @@ class CluStreamOnline(
     val t0 = System.nanoTime()
     val result = block // call-by-name
     val t1 = System.nanoTime()
-    println("Elapsed time: " + (t1 - t0) / 1000000 + "ms")
+    logInfo(s"Elapsed time: " + (t1 - t0) / 1000000 + "ms")
     result
   }
 
@@ -55,7 +55,7 @@ class CluStreamOnline(
   private var tFactor = 2.0
   private var recursiveOutliersRMSDCheck = true
 
-  private var time: Long = 0L
+  private var time: Long = 1L
   private var N: Long = 0L
   private var currentN: Long = 0L
 
@@ -123,7 +123,7 @@ class CluStreamOnline(
         mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
         if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
         mcInfo(i)._1.setN(mc.getN)
-        if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
+        if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
         else mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
         i += 1
       }
@@ -145,26 +145,27 @@ class CluStreamOnline(
 
   def run(data: DStream[breeze.linalg.Vector[Double]]): Unit = {
     data.foreachRDD { (rdd, timeS) =>
-      this.time += 1
       currentN = rdd.count()
-      this.N += currentN
       if (currentN != 0) {
 
         if (initialized) {
 
           val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastMCInfo.value)
           updateMicroClusters(assignations)
+
           var i = 0
           for (mc <- microClusters) {
             mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
             if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
             mcInfo(i)._1.setN(mc.getN)
-            if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
-            else {
-              mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, broadcastMCInfo.value))
-            }
+            if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
             i += 1
           }
+          for (mc <- mcInfo) {
+            if (mc._1.n == 1)
+              mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
+          }
+
 
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
@@ -176,6 +177,8 @@ class CluStreamOnline(
         }
 
       }
+      this.time += 1
+      this.N += currentN
     }
   }
 
@@ -347,7 +350,7 @@ class CluStreamOnline(
 
     mcInfo(idx1)._1.setCentroid(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble)
     mcInfo(idx1)._1.setN(microClusters(idx1).getN)
-    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n)))
+    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n.toDouble - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n.toDouble)))
 
   }
 
@@ -369,7 +372,7 @@ class CluStreamOnline(
 
     mcInfo(idx1)._1.setCentroid(microClusters(idx1).getCf1x :/ microClusters(idx1).getN.toDouble)
     mcInfo(idx1)._1.setN(microClusters(idx1).getN)
-    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n)))
+    mcInfo(idx1)._1.setRmsd(scala.math.sqrt(sum(microClusters(idx1).cf2x) / microClusters(idx1).n.toDouble - sum(microClusters(idx1).cf1x.map(a => a * a)) / (microClusters(idx1).n * microClusters(idx1).n.toDouble)))
 
   }
 
@@ -449,7 +452,7 @@ class CluStreamOnline(
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
-    println("Processing points")
+    logInfo(s"Processing points")
 
     // sumsAndSumsSquares -> (key: Int, (sum: Vector[Double], sumSquares: Vector[Double], count: Long ) )
     val sumsAndSumsSquares = timer {
@@ -459,6 +462,7 @@ class CluStreamOnline(
 
 
     var totalIn = 0L
+
     for (mc <- microClusters) {
       for (ss <- sumsAndSumsSquares) if (mc.getIds(0) == ss._1) {
         mc.setCf1x(mc.cf1x :+ ss._2._1)
@@ -471,7 +475,9 @@ class CluStreamOnline(
     }
 
 
-    println("Processing " + (currentN - totalIn) + " outliers")
+
+
+    logInfo(s"Processing " + (currentN - totalIn) + " outliers")
     timer {
       if (dataOut != null && currentN - totalIn != 0) {
         var mTimeStamp: Double = 0.0

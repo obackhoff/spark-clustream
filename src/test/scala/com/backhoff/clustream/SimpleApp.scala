@@ -26,10 +26,10 @@ object SimpleApp {
 //    println("Lines with a: %s, Lines with b: %s".format(numAs, numBs))
 
     val h = 1
-    val t1 = 7
-    val t2 = 22
-    val t3 = 82
-    val t4 = 161
+    val t1 = 8
+    val t2 = 24
+    val t3 = 83
+    val t4 = 163
 
     val clustream = new CluStream(null)
     val snap1 = timer{clustream.getMCsFromSnapshots("snaps",t1,h)}
@@ -63,6 +63,15 @@ object SimpleApp {
     }
 
     Tools.convertMCsBinariesToText("snaps", "snaps/text", 326)
+//
+    println(snap1.map(a => a.getN).mkString("[",",","]"))
+    println("mics points = " + snap1.map(_.getN).sum)
+    println(snap2.map(a => a.getN).mkString("[",",","]"))
+    println("mics points = " + snap2.map(_.getN).sum)
+    println(snap3.map(a => a.getN).mkString("[",",","]"))
+    println("mics points = " + snap3.map(_.getN).sum)
+    println(snap4.map(a => a.getN).mkString("[",",","]"))
+    println("mics points = " + snap4.map(_.getN).sum)
 
   }
 }

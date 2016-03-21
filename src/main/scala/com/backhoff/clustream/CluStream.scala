@@ -155,19 +155,20 @@ class CluStream (
       val arrs1 = snap1.map(_.getIds)
       val arrs2 = snap2.map(_.getIds)
 
-      val relatingMCs = snap1 zip arrs1.map(a => arrs2.zipWithIndex.map(b=> if(b._1.toSet.intersect(a.toSet).nonEmpty) b._2;else -1).find(_ >= 0).getOrElse(-1))
-
+      val relatingMCs = snap1 zip arrs1.map(a => arrs2.zipWithIndex.map(b=> if(b._1.toSet.intersect(a.toSet).nonEmpty) b._2;else -1))
       relatingMCs.map{ mc =>
-        if (mc._2 != -1 && t1 - h  >= t2) {
-          mc._1.setCf2x(mc._1.getCf2x :- snap2(mc._2).getCf2x)
-          mc._1.setCf1x(mc._1.getCf1x :- snap2(mc._2).getCf1x)
-          mc._1.setCf2t(mc._1.getCf2t - snap2(mc._2).getCf2t)
-          mc._1.setCf1t(mc._1.getCf1t - snap2(mc._2).getCf1t)
-          mc._1.setN(mc._1.getN - snap2(mc._2).getN)
-          mc._1.setIds(mc._1.getIds.toSet.diff(snap2(mc._2).getIds.toSet).toArray)
-
+        if (!mc._2.forall(_ == -1) && t1 - h  >= t2) {
+          for(id <- mc._2) if(id != -1) {
+            mc._1.setCf2x(mc._1.getCf2x :- snap2(id).getCf2x)
+            mc._1.setCf1x(mc._1.getCf1x :- snap2(id).getCf1x)
+            mc._1.setCf2t(mc._1.getCf2t - snap2(id).getCf2t)
+            mc._1.setCf1t(mc._1.getCf1t - snap2(id).getCf1t)
+            mc._1.setN(mc._1.getN - snap2(id).getN)
+            mc._1.setIds(mc._1.getIds.toSet.diff(snap2(id).getIds.toSet).toArray)
+          }
           mc._1
         }else mc._1
+
       }
     }
     catch{

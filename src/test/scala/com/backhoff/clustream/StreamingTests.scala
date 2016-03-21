@@ -7,6 +7,8 @@ package com.backhoff.clustream
 import org.apache.spark.streaming.scheduler.{StreamingListenerBatchCompleted, StreamingListener}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming._
+import org.apache.log4j._
+
 
 import breeze.linalg._
 
@@ -16,6 +18,8 @@ object StreamingTests {
     //    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("spark://192.168.0.119:7077")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
     val ssc = new StreamingContext(sc, Milliseconds(1000))
     // ssc.checkpoint("/home/omar/stream/checkpoint")
     val lines = ssc.socketTextStream("localhost", 9999)
@@ -33,7 +37,7 @@ object StreamingTests {
     //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(50, 34, 2000).setDelta(1).setM(1000).setRecursiveOutliersRMSDCheck(true)
+    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20).setRecursiveOutliersRMSDCheck(true)
     val clustream = new CluStream(model)
     ssc.addStreamingListener(new PrintClustersListener(clustream, sc))
     //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -48,33 +52,26 @@ object StreamingTests {
 }
 
 private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkContext) extends StreamingListener {
-  def timer[R](block: => R): R = {
-    val t0 = System.nanoTime()
-    val result = block // call-by-name
-    val t1 = System.nanoTime()
-    println("Elapsed time: " + (t1 - t0) / 1000000 + "ms")
-    result
-  }
 
   override def onBatchCompleted(batchCompleted: StreamingListenerBatchCompleted) {
     val tc = clustream.model.getCurrentTime
     val n = clustream.model.getTotalPoints
 
-//    clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
-          println("tc = " + tc + ", n = " + n)
+    clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
+    println("tc = " + tc + ", n = " + n)
 
-    if (batchCompleted.batchInfo.numRecords > 0 ) {
+    if (batchCompleted.batchInfo.numRecords > 0) {
 
-//      if (Array(750,1250,1750,2250).contains(tc)) {
+//      if (9000 < n && n < 11000 || 39000 < n && n < 41000 || 159000 < n && n < 161000 || 319000 < n && n < 321000 ) {
 //        val snaps = clustream.getSnapShots("snaps",tc,1)
-        val clusters = timer {
-//          clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
-          clustream.fakeKMeans(sc, 5, 2000, clustream.model.getMicroClusters)
-        }
-//        if (clusters != null) {
-//          println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
-          clusters.clusterCenters.foreach(println)
-//        }
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
+//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
+//        clusters.clusterCenters.foreach(println)
+
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.model.getMicroClusters)
+//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + " ============")
+//        clusters.clusterCenters.foreach(println)
+
 //      }
 
     }

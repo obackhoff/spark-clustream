@@ -20,8 +20,8 @@ object Tools {
               "MicroCluster IDs = " + m.getIds.mkString("[", ",", "]") + "\n" +
                 "CF2X = " + m.getCf2x.toArray.mkString("[", ",", "]") + "\n" +
                 "CF1X = " + m.getCf1x.toArray.mkString("[", ",", "]") + "\n" +
-                "CF2t = " + m.getCf2t.toString + "\n" +
-                "CF1t = " + m.getCf1t.toString + "\n" +
+                "CF2T = " + m.getCf2t.toString + "\n" +
+                "CF1T = " + m.getCf1t.toString + "\n" +
                 "N = " + m.getN.toString + "\n"
             }
 
