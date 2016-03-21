@@ -574,7 +574,7 @@ protected class MicroCluster(
                               var n: Long,
                               var ids: Array[Int]) extends Serializable {
 
-  def this(cf2x: breeze.linalg.Vector[Double], cf1x: breeze.linalg.Vector[Double], cf2t: Long, cf1t: Long, n: Long) = this(cf2x, cf1x, cf2t, cf2t, n, Array(MicroCluster.inc))
+  def this(cf2x: breeze.linalg.Vector[Double], cf1x: breeze.linalg.Vector[Double], cf2t: Long, cf1t: Long, n: Long) = this(cf2x, cf1x, cf2t, cf1t, n, Array(MicroCluster.inc))
 
   def setCf2x(cf2x: breeze.linalg.Vector[Double]): Unit = {
     this.cf2x = cf2x

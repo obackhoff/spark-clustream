@@ -26,10 +26,10 @@ object SimpleApp {
 //    println("Lines with a: %s, Lines with b: %s".format(numAs, numBs))
 
     val h = 1
-    val t1 = 8
+    val t1 = 7
     val t2 = 22
     val t3 = 82
-    val t4 = 162
+    val t4 = 161
 
     val clustream = new CluStream(null)
     val snap1 = timer{clustream.getMCsFromSnapshots("snaps",t1,h)}
@@ -61,9 +61,8 @@ object SimpleApp {
       println("snapshots " + clustream.getSnapShots("snaps",t4,h))
       clusters4.clusterCenters.foreach(println)
     }
-   // val clu = new CluStream().setK(23).setH(100)
 
-   // println("CluStream with " + clu.k + " clusters and a horizon of " + clu.h)
+    Tools.convertMCsBinariesToText("snaps", "snaps/text", 326)
 
   }
 }
