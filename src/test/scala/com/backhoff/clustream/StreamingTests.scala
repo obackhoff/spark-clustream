@@ -17,7 +17,7 @@ object StreamingTests {
     val conf = new SparkConf().setAppName("Stream Word Count").setMaster("local[*]")
     //    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("spark://192.168.0.119:7077")
     val sc = new SparkContext(conf)
-    sc.setLogLevel("ERROR")
+//    sc.setLogLevel("ERROR")
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
     val ssc = new StreamingContext(sc, Milliseconds(1000))

@@ -27,9 +27,9 @@ object SimpleApp {
 
     val h = 1
     val t1 = 8
-    val t2 = 24
-    val t3 = 83
-    val t4 = 163
+    val t2 = 22
+    val t3 = 80
+    val t4 = 158
 
     val clustream = new CluStream(null)
     val snap1 = timer{clustream.getMCsFromSnapshots("snaps",t1,h)}

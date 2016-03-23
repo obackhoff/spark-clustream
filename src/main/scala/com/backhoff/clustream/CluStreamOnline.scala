@@ -86,11 +86,12 @@ class CluStreamOnline(
       mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
       if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
       mcInfo(i)._1.setN(mc.getN)
-      if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n)))
-      else {
-        mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
-      }
+      if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
       i += 1
+    }
+    for (mc <- mcInfo) {
+      if (mc._1.n == 1)
+        mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
     }
 
     broadcastQ = rdd.context.broadcast(q)
@@ -124,8 +125,12 @@ class CluStreamOnline(
         if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
         mcInfo(i)._1.setN(mc.getN)
         if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
-        else mcInfo(i)._1.setRmsd(distanceNearestMC(mcInfo(i)._1.centroid, mcInfo))
         i += 1
+      }
+
+      for (mc <- mcInfo) {
+        if (mc._1.n == 1)
+          mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
       }
 
       broadcastQ = rdd.context.broadcast(q)
