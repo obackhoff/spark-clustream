@@ -79,7 +79,7 @@ class CluStreamOnline(
   private def initRand(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
     mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(rand()), 0.0, 0L)) zip (0 until q)
 
-    val assignations = assignToMicroCluster(rdd, q, mcInfo)
+    val assignations = assignToMicroCluster(rdd, mcInfo)
     updateMicroClusters(assignations)
     var i = 0
     for (mc <- microClusters) {
@@ -116,7 +116,7 @@ class CluStreamOnline(
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
 
       val tempRDD = rdd.context.parallelize(initArr)
-      val assignations = assignToMicroCluster(tempRDD, q, mcInfo)
+      val assignations = assignToMicroCluster(tempRDD, mcInfo)
       updateMicroClusters(assignations)
 
       var i = 0
@@ -155,7 +155,7 @@ class CluStreamOnline(
 
         if (initialized) {
 
-          val assignations = assignToMicroCluster(rdd, broadcastQ.value, broadcastMCInfo.value)
+          val assignations = assignToMicroCluster(rdd)
           updateMicroClusters(assignations)
 
           var i = 0
@@ -407,12 +407,29 @@ class CluStreamOnline(
     *
     **/
 
-  private def assignToMicroCluster(rdd: RDD[Vector[Double]], q: Int, mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
+  private def assignToMicroCluster(rdd: RDD[Vector[Double]], mcInfo: Array[(MicroClusterInfo, Int)]): RDD[(Int, Vector[Double])] = {
     rdd.map { a =>
       var minDist = Double.PositiveInfinity
       var minIndex = Int.MaxValue
       var i = 0
       for (mc <- mcInfo) {
+        val dist = squaredDistance(a, mc._1.centroid)
+        if (dist < minDist) {
+          minDist = dist
+          minIndex = mc._2
+        }
+        i += 1
+      }
+      (minIndex, a)
+    }
+  }
+
+  private def assignToMicroCluster(rdd: RDD[Vector[Double]]) = {
+    rdd.map { a =>
+      var minDist = Double.PositiveInfinity
+      var minIndex = Int.MaxValue
+      var i = 0
+      for (mc <- broadcastMCInfo.value) {
         val dist = squaredDistance(a, mc._1.centroid)
         if (dist < minDist) {
           minDist = dist
