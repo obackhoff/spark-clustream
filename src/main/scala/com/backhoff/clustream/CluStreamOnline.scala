@@ -108,7 +108,6 @@ class CluStreamOnline(
   private def initKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
     initArr = initArr ++ rdd.collect
     if (initArr.length >= minInitPoints) {
-
       val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
       val clusters = KMeans.train(trainingSet, q, 10)
 
@@ -400,7 +399,6 @@ class CluStreamOnline(
     * Finds the nearest microcluster for all entries of an RDD.
     *
     * @param rdd    : RDD with points
-    * @param q      : number of microclusters
     * @param mcInfo : Array containing microclusters information
     * @return RDD[(Int, Vector[Double])]: RDD that contains a tuple of the ID of the
     *         nearest microcluster and the point itself.
@@ -424,6 +422,14 @@ class CluStreamOnline(
     }
   }
 
+  /**
+    * Finds the nearest microcluster for all entries of an RDD, uses broadcast variable.
+    *
+    * @param rdd    : RDD with points
+    * @return RDD[(Int, Vector[Double])]: RDD that contains a tuple of the ID of the
+    *         nearest microcluster and the point itself.
+    *
+    **/
   private def assignToMicroCluster(rdd: RDD[Vector[Double]]) = {
     rdd.map { a =>
       var minDist = Double.PositiveInfinity
