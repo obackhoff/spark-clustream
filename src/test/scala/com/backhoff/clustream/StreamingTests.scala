@@ -14,10 +14,10 @@ import breeze.linalg._
 
 object StreamingTests {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("local[*]")
+    val conf = new SparkConf().setAppName("Spark CluStream").setMaster("local[*]")
     //    val conf = new SparkConf().setAppName("Stream Word Count").setMaster("spark://192.168.0.119:7077")
     val sc = new SparkContext(conf)
-//    sc.setLogLevel("ERROR")
+    sc.setLogLevel("ERROR")
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
     val ssc = new StreamingContext(sc, Milliseconds(1000))
@@ -37,7 +37,7 @@ object StreamingTests {
     //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20).setRecursiveOutliersRMSDCheck(true)
+    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20)
     val clustream = new CluStream(model)
     ssc.addStreamingListener(new PrintClustersListener(clustream, sc))
     //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))

@@ -10,7 +10,7 @@ import org.apache.spark.Logging
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.Experimental
-import org.apache.spark.mllib.clustering.KMeans
+import org.apache.spark.mllib.clustering.{StreamingKMeans, KMeans}
 import breeze.stats.distributions.Gaussian
 
 
@@ -67,6 +67,10 @@ class CluStreamOnline(
 
   var initialized = false
 
+  private var useNormalKMeans = false
+  private var strKmeans: StreamingKMeans = null
+
+
 
   private var initArr: Array[breeze.linalg.Vector[Double]] = Array()
 
@@ -94,7 +98,6 @@ class CluStreamOnline(
         mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
     }
 
-    broadcastQ = rdd.context.broadcast(q)
     broadcastMCInfo = rdd.context.broadcast(mcInfo)
     initialized = true
   }
@@ -108,13 +111,13 @@ class CluStreamOnline(
   private def initKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
     initArr = initArr ++ rdd.collect
     if (initArr.length >= minInitPoints) {
-      val trainingSet = rdd.context.parallelize(initArr.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray)))
+      val tempRDD = rdd.context.parallelize(initArr)
+      val trainingSet = tempRDD.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))
       val clusters = KMeans.train(trainingSet, q, 10)
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
 
-      val tempRDD = rdd.context.parallelize(initArr)
       val assignations = assignToMicroCluster(tempRDD, mcInfo)
       updateMicroClusters(assignations)
 
@@ -126,17 +129,48 @@ class CluStreamOnline(
         if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
         i += 1
       }
-
       for (mc <- mcInfo) {
         if (mc._1.n == 1)
           mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
       }
 
-      broadcastQ = rdd.context.broadcast(q)
       broadcastMCInfo = rdd.context.broadcast(mcInfo)
 
       initialized = true
     }
+  }
+
+  private def initStreamingKmeans(rdd: RDD[breeze.linalg.Vector[Double]]): Unit = {
+
+    if(strKmeans == null) strKmeans = new StreamingKMeans().setK(q).setRandomCenters(numDimensions, 0.0)
+    val trainingSet = rdd.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))
+
+    val clusters = strKmeans.latestModel().update(trainingSet,1.0, "batches")
+    if(currentN >= minInitPoints){
+
+      mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
+      for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
+
+      val assignations = assignToMicroCluster(rdd, mcInfo)
+      updateMicroClusters(assignations)
+
+      var i = 0
+      for (mc <- microClusters) {
+        mcInfo(i) = (mcInfo(i)._1, mc.getIds(0))
+        if (mc.getN > 0) mcInfo(i)._1.setCentroid(mc.cf1x :/ mc.n.toDouble)
+        mcInfo(i)._1.setN(mc.getN)
+        if (mcInfo(i)._1.n > 1) mcInfo(i)._1.setRmsd(scala.math.sqrt(sum(mc.cf2x) / mc.n.toDouble - sum(mc.cf1x.map(a => a * a)) / (mc.n * mc.n.toDouble)))
+        i += 1
+      }
+      for (mc <- mcInfo) {
+        if (mc._1.n == 1)
+          mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
+      }
+
+      broadcastMCInfo = rdd.context.broadcast(mcInfo)
+      initialized = true
+    }
+
   }
 
   /**
@@ -151,7 +185,6 @@ class CluStreamOnline(
     data.foreachRDD { (rdd, timeS) =>
       currentN = rdd.count()
       if (currentN != 0) {
-
         if (initialized) {
 
           val assignations = assignToMicroCluster(rdd)
@@ -170,16 +203,13 @@ class CluStreamOnline(
               mc._1.setRmsd(distanceNearestMC(mc._1.centroid, mcInfo))
           }
 
-
           broadcastMCInfo = rdd.context.broadcast(mcInfo)
-
         } else {
           minInitPoints match {
             case 0 => initRand(rdd)
-            case _ => initKmeans(rdd)
+            case _ => if(useNormalKMeans) initKmeans(rdd) else initStreamingKmeans(rdd)
           }
         }
-
       }
       this.time += 1
       this.N += currentN
@@ -230,6 +260,21 @@ class CluStreamOnline(
 
   def setRecursiveOutliersRMSDCheck(ans: Boolean): this.type = {
     this.recursiveOutliersRMSDCheck = ans
+    this
+  }
+
+  /**
+    * Changes the K-Means method to use from StreamingKmeans to
+    * normal K-Means for the initialization. StreamingKMeans is much
+    * faster but in some cases normal K-Means could deliver more
+    * accurate initialization.
+    *
+    * @param ans : true or false
+    * @return Class: current class
+    **/
+
+  def setInitNormalKMeans(ans: Boolean): this.type = {
+    this.useNormalKMeans = ans
     this
   }
 
@@ -522,7 +567,7 @@ class CluStreamOnline(
           if (mc.getN < 2 * mLastPoints) mTimeStamp = meanTimeStamp
           else mTimeStamp = Gaussian(meanTimeStamp, sdTimeStamp).icdf(1 - mLastPoints / (2 * mc.getN.toDouble))
 
-          if (mTimeStamp < recencyThreshold) safeDeleteMC = safeDeleteMC :+ i
+          if (mTimeStamp < recencyThreshold || mc.getN == 0) safeDeleteMC = safeDeleteMC :+ i
           else keepOrMergeMC = keepOrMergeMC :+ i
 
           i += 1
