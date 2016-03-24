@@ -55,7 +55,7 @@ class CluStreamOnline(
   private var tFactor = 2.0
   private var recursiveOutliersRMSDCheck = true
 
-  private var time: Long = 1L
+  private var time: Long = 0L
   private var N: Long = 0L
   private var currentN: Long = 0L
 
