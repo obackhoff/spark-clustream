@@ -37,7 +37,7 @@ object StreamingTests {
     //    val wordCounts = pairs.reduceByKey(_ + _)
 
 
-    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20)
+    val model = new CluStreamOnline(50, 34, 2000).setDelta(512).setM(20).setInitNormalKMeans(false)
     val clustream = new CluStream(model)
     ssc.addStreamingListener(new PrintClustersListener(clustream, sc))
     //    model.run(lines.map(_.split(" ").map(_.toDouble)).map(DenseVector(_)))
@@ -54,24 +54,44 @@ object StreamingTests {
 private[clustream] class PrintClustersListener(clustream: CluStream, sc: SparkContext) extends StreamingListener {
 
   override def onBatchCompleted(batchCompleted: StreamingListenerBatchCompleted) {
-    val tc = clustream.model.getCurrentTime
-    val n = clustream.model.getTotalPoints
+      if (batchCompleted.batchInfo.numRecords > 0) {
 
-    clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
-    println("tc = " + tc + ", n = " + n)
+        val tc = clustream.model.getCurrentTime
+        val n = clustream.model.getTotalPoints
 
-    if (batchCompleted.batchInfo.numRecords > 0) {
+        clustream.saveSnapShotsToDisk("snaps",tc, 2, 10)
+        println("tc = " + tc + ", n = " + n)
 
-//      if (9000 < n && n < 11000 || 39000 < n && n < 41000 || 159000 < n && n < 161000 || 319000 < n && n < 321000 ) {
-//        val snaps = clustream.getSnapShots("snaps",tc,1)
-//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 1))
+//      if (149900 < n && n <= 150100 ) {
+//
+//        val snaps = clustream.getSnapShots("snaps",tc,256)
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 256))
 //        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
-//        clusters.clusterCenters.foreach(println)
-
-//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.model.getMicroClusters)
-//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + " ============")
-//        clusters.clusterCenters.foreach(println)
-
+//        clusters.clusterCenters.foreach(c=>scala.tools.nsc.io.Path("/home/omar/datasets/tests/2case/results/clustream200/centers1").createFile().appendAll(c.toArray.mkString("",",","") +"\n" ))
+//
+//
+////        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.model.getMicroClusters)
+////        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + " ============")
+////        clusters.clusterCenters.foreach(println)
+//
+//      }
+//      if( 249900 < n && n <= 250100){
+//        val snaps = clustream.getSnapShots("snaps",tc,256)
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 256))
+//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
+//        clusters.clusterCenters.foreach(c=>scala.tools.nsc.io.Path("/home/omar/datasets/tests/2case/results/clustream200/centers2").createFile().appendAll(c.toArray.mkString("",",","")+"\n"))
+//      }
+//      if(349900 < n && n <= 350100 ){
+//        val snaps = clustream.getSnapShots("snaps",tc,256)
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 256))
+//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
+//        clusters.clusterCenters.foreach(c=>scala.tools.nsc.io.Path("/home/omar/datasets/tests/2case/results/clustream200/centers3").createFile().appendAll(c.toArray.mkString("",",","")+"\n"))
+//      }
+//      if(449900 < n && n <= 450100){
+//        val snaps = clustream.getSnapShots("snaps",tc,256)
+//        val clusters = clustream.fakeKMeans(sc, 5, 2000, clustream.getMCsFromSnapshots("snaps", tc, 256))
+//        println("=============  MacroClusters Centers for time = " + tc + ", n = " + n + ", snapshots = " + snaps + " ============")
+//        clusters.clusterCenters.foreach(c=>scala.tools.nsc.io.Path("/home/omar/datasets/tests/2case/results/clustream200/centers4").createFile().appendAll(c.toArray.mkString("",",","")+"\n"))
 //      }
 
     }

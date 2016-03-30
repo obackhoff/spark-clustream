@@ -146,7 +146,7 @@ class CluStreamOnline(
     val trainingSet = rdd.map(v => org.apache.spark.mllib.linalg.Vectors.dense(v.toArray))
 
     val clusters = strKmeans.latestModel().update(trainingSet,1.0, "batches")
-    if(currentN >= minInitPoints){
+    if(getTotalPoints >= minInitPoints){
 
       mcInfo = Array.fill(q)(new MicroClusterInfo(Vector.fill[Double](numDimensions)(0), 0.0, 0L)) zip (0 until q)
       for (i <- clusters.clusterCenters.indices) mcInfo(i)._1.setCentroid(DenseVector(clusters.clusterCenters(i).toArray))
