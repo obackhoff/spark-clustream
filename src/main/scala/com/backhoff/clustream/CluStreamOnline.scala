@@ -6,7 +6,6 @@ package com.backhoff.clustream
 
 import breeze.linalg._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.log4j.Logger
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.Experimental
@@ -35,7 +34,9 @@ class CluStreamOnline(
                        val q: Int,
                        val numDimensions: Int,
                        val minInitPoints: Int)
-  extends Logger with Serializable {
+ extends Serializable {
+
+  @transient lazy val log = org.apache.log4j.LogManager.getLogger("myLogger")
 
 
   /**
@@ -46,10 +47,10 @@ class CluStreamOnline(
     val t0 = System.nanoTime()
     val result = block // call-by-name
     val t1 = System.nanoTime()
-    Logger.info(s"Elapsed time: " + (t1 - t0) / 1000000 + "ms")
+    log.warn(s"Elapsed time: " + (t1 - t0) / 1000000 + "ms")
     result
   }
-
+  
   private var mLastPoints = 500
   private var delta = 20
   private var tFactor = 2.0
@@ -525,7 +526,7 @@ class CluStreamOnline(
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
-    Logger.info(s"Processing points")
+    log.warn(s"Processing points")
 
     // sumsAndSumsSquares -> (key: Int, (sum: Vector[Double], sumSquares: Vector[Double], count: Long ) )
     val sumsAndSumsSquares = timer {
@@ -550,7 +551,7 @@ class CluStreamOnline(
 
 
 
-    Logger.info(s"Processing " + (currentN - totalIn) + " outliers")
+    log.warn(s"Processing " + (currentN - totalIn) + " outliers")
     timer {
       if (dataOut != null && currentN - totalIn != 0) {
         var mTimeStamp: Double = 0.0
@@ -565,7 +566,7 @@ class CluStreamOnline(
           val sdTimeStamp = scala.math.sqrt(mc.getCf2t.toDouble / mc.getN.toDouble - meanTimeStamp * meanTimeStamp)
 
           if (mc.getN < 2 * mLastPoints) mTimeStamp = meanTimeStamp
-          else mTimeStamp = Gaussian(meanTimeStamp, sdTimeStamp).icdf(1 - mLastPoints / (2 * mc.getN.toDouble))
+          else mTimeStamp = Gaussian(meanTimeStamp, sdTimeStamp).inverseCdf(1 - mLastPoints / (2 * mc.getN.toDouble))
 
           if (mTimeStamp < recencyThreshold || mc.getN == 0) safeDeleteMC = safeDeleteMC :+ i
           else keepOrMergeMC = keepOrMergeMC :+ i
