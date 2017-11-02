@@ -6,7 +6,7 @@ package com.backhoff.clustream
 
 import breeze.linalg._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.log4j.{Level, Logger}
+import org.apache.log4j.Logger
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.Experimental
