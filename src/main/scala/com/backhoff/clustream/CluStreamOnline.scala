@@ -6,7 +6,7 @@ package com.backhoff.clustream
 
 import breeze.linalg._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.Logging
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.annotation.Experimental
@@ -35,7 +35,7 @@ class CluStreamOnline(
                        val q: Int,
                        val numDimensions: Int,
                        val minInitPoints: Int)
-  extends Logging with Serializable {
+  extends Logger with Serializable {
 
 
   /**
@@ -46,7 +46,7 @@ class CluStreamOnline(
     val t0 = System.nanoTime()
     val result = block // call-by-name
     val t1 = System.nanoTime()
-    logInfo(s"Elapsed time: " + (t1 - t0) / 1000000 + "ms")
+    Logger.info(s"Elapsed time: " + (t1 - t0) / 1000000 + "ms")
     result
   }
 
@@ -525,7 +525,7 @@ class CluStreamOnline(
     } else dataIn = assignations
 
     // Compute sums, sums of squares and count points... all by key
-    logInfo(s"Processing points")
+    Logger.info(s"Processing points")
 
     // sumsAndSumsSquares -> (key: Int, (sum: Vector[Double], sumSquares: Vector[Double], count: Long ) )
     val sumsAndSumsSquares = timer {
@@ -550,7 +550,7 @@ class CluStreamOnline(
 
 
 
-    logInfo(s"Processing " + (currentN - totalIn) + " outliers")
+    Logger.info(s"Processing " + (currentN - totalIn) + " outliers")
     timer {
       if (dataOut != null && currentN - totalIn != 0) {
         var mTimeStamp: Double = 0.0
